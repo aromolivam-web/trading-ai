@@ -120,6 +120,24 @@ let favorites=[],alertsOn=false,alertLog=[],positions=[],balance=null,currency="
 let capital=1000,risk=2,leverage=30,countdown=30,tab="chart",chartH=300;
 let liveTimer=null,countTimer=null,prevSig=null,tradeModalOpen=false,tradeDir="COMPRA";
 let aiLoading=false,aiResult="",tradeLoading=false;
+let serverStatus='cold'; // 'cold' | 'warming' | 'warm'
+
+// Pre-warm proxy immediately on page load
+(async function warmProxy(){
+  serverStatus='warming';
+  try{
+    const r=await fetch(PROXY+"/ping",{signal:AbortSignal.timeout(65000)});
+    serverStatus='warm';
+  }catch{serverStatus='warm';} // treat any response (even error) as warm
+  // Refresh login UI if visible
+  const badge=document.getElementById('srv-badge');
+  if(badge) badge.innerHTML=_srvBadge();
+})();
+
+function _srvBadge(){
+  if(serverStatus==='warm') return '<span style="color:#10b981;font-size:11px">⚡ Servidor listo</span>';
+  return '<span style="color:#f59e0b;font-size:11px">⏳ Preparando servidor...</span>';
+}
 
 // IMPROVEMENT 1: Chart zoom/pan state variables
 let chartOffset=0,chartVisibleCandles=80,chartDragging=false,chartDragX=0,chartDragOff=0;
@@ -363,6 +381,12 @@ async function doLogin(){
   const err=document.getElementById("l-err");const btn=document.getElementById("l-btn");
   if(!ak||!em||!pw){err.textContent="Completa todos los campos.";err.style.display="block";return;}
   err.style.display="none";btn.disabled=true;btn.textContent="ð Conectando...";
+
+  // Progressive messages while waiting (server may take up to 60s to wake)
+  const _t1=setTimeout(()=>{if(btn.disabled)btn.textContent="â³ Despertando servidor (~30s)...";},4000);
+  const _t2=setTimeout(()=>{if(btn.disabled)btn.textContent="ð Casi listo, espera un momento...";},15000);
+  const _t3=setTimeout(()=>{if(btn.disabled)btn.textContent="ð El servidor tarda en responder, aguanta...";},30000);
+  const clearTimers=()=>{clearTimeout(_t1);clearTimeout(_t2);clearTimeout(_t3);};
   try{
     const r=await fetch(PROXY+"/session",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({apiKey:ak,email:em,password:pw,demo:dm})});
     const d=await r.json();
@@ -535,7 +559,14 @@ function render(){
         <input id="l-email" placeholder="Email" style="width:100%;padding:10px;margin-bottom:8px;background:#060a10;border:1px solid #1e2d45;border-radius:8px;color:#fff;font-size:14px"/>
         <input id="l-pass" type="password" placeholder="Password" style="width:100%;padding:10px;margin-bottom:8px;background:#060a10;border:1px solid #1e2d45;border-radius:8px;color:#fff;font-size:14px"/>
         <label style="display:flex;align-items:center;gap:8px;margin-bottom:16px;color:#64748b;font-size:12px"><input id="l-demo" type="checkbox" checked/> DEMO Mode</label>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div id="srv-badge">${_srvBadge()}</div>
+          <div style="font-size:10px;color:#475569">Render free tier</div>
+        </div>
         <button id="l-btn" onclick="doLogin()" class="btn-buy" style="width:100%;font-size:14px">ð Conectar a Capital.com</button>
+        <div style="font-size:10px;color:#475569;text-align:center;margin-top:8px">
+          La primera conexiÃ³n del dÃ­a puede tardar hasta 60 segundos
+        </div>
       </div>
     </div>`;
     return;

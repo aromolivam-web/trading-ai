@@ -76,7 +76,7 @@ body{background:#060a14;color:#e2e8f0;font-family:Inter,system-ui,sans-serif;min
 #sidebar-overlay{display:none;position:fixed;inset:0;background:#00000080;z-index:400}
 #mob-menu-btn{display:none;position:fixed;top:10px;left:10px;z-index:600;background:#090d1a;border:1px solid #1e2d45;border-radius:8px;padding:7px 11px;cursor:pointer;font-size:15px;color:#fff}
 .view-toggle{position:fixed;top:10px;right:10px;z-index:600;display:flex;gap:3px;background:#090d1a;border-radius:10px;padding:4px;border:1px solid #1e2d45}
-.view-btn{padding:5px 10px;border-radius:7px;border:none;cursor:pointer;font-size:11px;font-weight:600;background:transparent;color:#64748b;transition:.15s}
+.view-btn{padding:5px 10px;border-radius:7px;border:none;cursor:pointer;font-size:11px;font-weight:600;background:transparent;color:#64748b{transition:.15s}
 .view-btn.on{background:linear-gradient(135deg,#6366f1,#3b82f6);color:#fff}
 .pl-live{animation:pulse 2s ease-in-out infinite}
 @media(max-width:800px){
@@ -182,7 +182,7 @@ const ALL_ASSETS = Object.values(ASSETS).flat().filter((a,i,ar)=>ar.findIndex(b=
 let view="pc", sess=null, cat="💱 Forex", asset=ASSETS["💱 Forex"][0], tfIdx=4;
 let candles=null, ind=null, sig=null, sltp=null;
 let bid=null, ask=null, mid=null, trendInfo=null;
-let positions=[], balance=null, currency="USD";
+let positions=[], balance=null, currency="USD", currentAccount=null;
 let alertLog=[], prevSig=null, prevScore=0;
 let capital=1000, risk=2, leverage=30, countdown=30;
 let liveTimer=null, countTimer=null, plTimer=null;
@@ -226,7 +226,7 @@ function toast(msg,type="info"){
   const w=document.getElementById("toast-wrap");
   const el=document.createElement("div");
   const C={buy:["#021a10","#10b981","#d1fae5"],sell:["#1a0202","#ef4444","#fee2e2"],
-    warn:["#1a0f02","#f59e0b","#fef3c7"],info:["#0a1a30","#3b82f6","#dbeafe"],
+    warn:["#1a0f02","#f59e0b","#fef3c7"],info:["0a1a30","#3b82f6","#dbeafe"],
     success:["#021a10","#10b981","#d1fae5"],error:["#1a0202","#ef4444","#fee2e2"]};
   const c=C[type]||C.info;
   Object.assign(el.style,{background:c[0],border:`1px solid ${c[1]}`,color:c[2],
@@ -238,7 +238,7 @@ function toast(msg,type="info"){
 }
 function addAlert(type,msg){
   alertLog.unshift({type,msg,time:now()});
-  if(alertLog.length>80)alertLog.pop();
+  if(alertLog.length>80)!alertLog.pop();
 }
 
 /* ===== SIDEBAR ===== */
@@ -355,7 +355,7 @@ function detectPatterns(c){
   if(bear(P)&&bull(L)&&L.o>P.c&&L.c<P.o&&body(L)<body(P)*0.6)
     pts.push({score:1,desc:'🔆 Harami alcista'});
   // Bearish Harami
-  if(bull(P)&&bear(L)&&L.o<P.c&&L.c>P.o&&body(L)<body(P)*0.6)
+  if(bull(P)&&bear(L)&&L.o<<.c&&L.c>P.o&&body(L)<body(P)*0.6)
     pts.push({score:-1,desc:'🔅 Harami bajista'});
   return pts;
 }
@@ -655,7 +655,13 @@ function buildChart(){
 }
 
 function updateChart(){
-  if(!lwChart||!lwCandle||!candles||!candles.length)return;
+  if(!candles||!candles.length)return;
+  // If chart was destroyed (e.g. TF change) but container still in DOM, rebuild
+  if(!lwChart||!lwCandle){
+    const cont=document.getElementById('chart-container');
+    if(cont&&window.LightweightCharts)buildChart();
+    else return;
+  }
   const data=candles.map((c,i)=>({
     time:c.time||(Math.floor(Date.now()/1000)-(candles.length-1-i)*(TF_SECS[tfIdx]||3600)),
     open:c.o,high:c.h,low:c.l,close:c.c
@@ -728,6 +734,21 @@ function updateChart(){
 /* ===== DATA FETCHING ===== */
 function getH(){return{"x-cst":sess.cst,"x-token":sess.token,"x-base":sess.base};}
 
+/* ===== SAFE PROXY FETCH (handles Render free-tier sleeping) ===== */
+async function apiFetch(url,opts={}){
+  const r=await fetch(url,opts);
+  const txt=await r.text();
+  if(txt.trimStart().startsWith('<')){
+    serverStatus='cold';
+    const b=document.getElementById('srv-badge');
+    if(b)b.innerHTML=srvBadge();
+    throw new Error('🔄 Proxy despertando... Espera ~30s y vuelve a intentarlo.');
+  }
+  let d;
+  try{d=JSON.parse(txt);}catch{throw new Error('Respuesta inválida del servidor: '+txt.slice(0,60));}
+  return {ok:r.ok,status:r.status,d};
+}
+
 async function doLogin(){
   const ak=document.getElementById("l-key").value.trim();
   const em=document.getElementById("l-email").value.trim();
@@ -745,13 +766,15 @@ async function doLogin(){
   try{
     const ctrl=new AbortController();
     const tout=setTimeout(()=>ctrl.abort(),70000);
-    const r=await fetch(PROXY+"/session",{
+    const rawR=await fetch(PROXY+"/session",{
       method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({apiKey:ak,email:em,password:pw,demo:dm}),signal:ctrl.signal
     });
     clearTimeout(tout);
-    const d=await r.json();clr();
-    if(!r.ok)throw new Error(d.error||d.message||d.errorCode||"Error HTTP "+r.status);
+    const rawTxt=await rawR.text();clr();
+    if(rawTxt.trimStart().startsWith('<'))throw new Error('🔄 Proxy despertando... Espera ~30s y reintenta.');
+    let d;try{d=JSON.parse(rawTxt);}catch{throw new Error('Respuesta inválida del servidor');}
+    if(!rawR.ok)throw new Error(d.error||d.message||d.errorCode||"Error HTTP "+rawR.status);
     if(!d.cst||!d.token)throw new Error("Sesión inválida: "+JSON.stringify(d).slice(0,100));
     serverStatus='warm';
     sess={cst:d.cst,token:d.token,base:d.base||'',apiKey:ak,email:em,pass:pw,demo:dm};
@@ -774,22 +797,43 @@ async function doLogin(){
 async function fetchAccount(){
   if(!sess)return;
   try{
-    const r=await fetch(PROXY+"/accounts",{headers:getH()});
-    if(!r.ok)return;
-    const d=await r.json();
-    const a=d?.accounts?.[0];
-    if(a){balance=a.balance?.available??a.balance?.balance;currency=a.currency||"USD";}
-  }catch{}
+    const {ok,d}=await apiFetch(PROXY+"/accounts",{headers:getH()});
+    if(!ok)return;
+    const accounts=d?.accounts||[];
+    // Use preferred (active) account, fall back to first
+    const active=accounts.find(a=>a.preferred)||accounts[0];
+    if(active){
+      balance=active.balance?.available??active.balance?.balance??active.balance;
+      currency=active.currency||"USD";
+      currentAccount=active;
+    }
+  }catch(e){console.warn('fetchAccount:',e.message);}
 }
 
 async function fetchPositions(){
   if(!sess)return;
   try{
-    const r=await fetch(PROXY+"/positions",{headers:getH()});
-    if(!r.ok)return;
-    const d=await r.json();
-    positions=d?.positions||[];
-  }catch{}
+    const {ok,d}=await apiFetch(PROXY+"/positions",{headers:getH()});
+    if(!ok)return;
+    // Capital.com returns [{position:{dealId,direction,size,openLevel,...},market:{epic,...}}]
+    // Flatten to a single object per position
+    positions=(d?.positions||[]).map(item=>{
+      if(item&&item.position){
+        return{
+          dealId:item.position.dealId||item.position.dealReference,
+          direction:item.position.direction,
+          size:item.position.size,
+          openLevel:item.position.openLevel||item.position.level||item.position.openPrice,
+          stopLevel:item.position.stopLevel,
+          limitLevel:item.position.limitLevel,
+          profit:item.position.profit,
+          epic:item.market?.epic||item.position.epic||asset.epic,
+          instrumentName:item.market?.instrumentName||item.market?.epic
+        };
+      }
+      return item; // already flat
+    });
+  }catch(e){console.warn('fetchPositions:',e.message);}
 }
 
 async function doAnalyze(silent=false){
@@ -801,9 +845,8 @@ async function doAnalyze(silent=false){
     if(eb)eb.style.display='none';
   }
   try{
-    const mr=await fetch(PROXY+"/markets/"+asset.epic,{headers:getH()});
-    if(!mr.ok)throw new Error("HTTP "+mr.status);
-    const md=await mr.json();
+    const {ok:mok,d:md}=await apiFetch(PROXY+"/markets/"+asset.epic,{headers:getH()});
+    if(!mok)throw new Error("HTTP error obteniendo mercado");
     bid=md?.snapshot?.bid||md?.snapshot?.offer;
     ask=md?.snapshot?.ask||md?.snapshot?.offer||bid;
     if(!bid)throw new Error("Activo no disponible o mercado cerrado");
@@ -811,575 +854,459 @@ async function doAnalyze(silent=false){
 
     let cands;
     try{
-      const pr=await fetch(PROXY+"/prices/"+asset.epic+"?resolution="+TFS[tfIdx].v+"&max=100",{headers:getH()});
-      const pd=await pr.json();
+     const {d:pd}=await apiFetch(PROXY+"/prices/"+asset.epic+"?resolution="+TFS[tfIdx].v+"&max=100",{headers:getH()});
       if(pd?.prices?.length>=10){
         cands=pd.prices.map((p,i)=>({
           o:(p.openPrice.bid+p.openPrice.ask)/2,
-          h:(p.highPrice.bid+p.highPrice.ask)/2,
-          l:(p.lowPrice.bid+p.lowPrice.ask)/2,
-          c:(p.closePrice.bid+p.closePrice.ask)/2,
-          time:parseCapTime(p.snapshotTime)||(Math.floor(Date.now()/1000)-(pd.prices.length-1-i)*TF_SECS[tfIdx])
-        }));
-      }else throw new Error("Datos insuficientes");
-    }catch{cands=addTimes(genC(mid,100));}
+          h:(�Y��X�K��Y
+��Y��X�K�\��K̋������X�K��Y
+�����X�K�\��K̋�Ί����T�X�K��Y
+�����T�X�K�\��K̋�[YN�\��P�\[YJ�ۘ\��[YJ_
+X]���܊]K����
+K�L
+KJ��X�\˛[��LKZJJ����P����YJB�JJNY[�H����]�\��܊�]��[��Y�X�Y[�\ȊNX�]���[��XY[Y\��[��ZYL
+JN�B���[�\�X�[��[�X�[�[�
+�[�\�N�ۜ�܏X�[�Ԋ�[�\�N�[��˗�܏\܎�Y�X�[��Y��[�\�[�܊N�X�[��
+ZY�Y˙\�[��]�N�[�[���X�[��[�
+�[�\�[�
+N��[��ۏL��Y��]��Yɉ��]��Y�OO\�Y˙\�B�Y[\�
+�Y˙\�OOH���T�H�Ș�^H����[��'����\��]�
+Ȉ8�%���Y˙\�OOH���T�H�ȼ'����T�H���'�-�S�H�JȈ�ٛ]
+ZY
+JN�]��Y�\�Y˙\���]���ܙO\�Y˜��ܙN�]�Z]�]�X���[�
 
-    candles=cands;
-    ind=calcInd(candles);
-    const sr=calcSR(candles);
-    window._sr=sr;
-    sig=calcSig(candles,ind,sr);
-    sltp=calcSLTP(mid,sig.dir,ind.atr);
-    trendInfo=calcTrend(candles,ind);
-    countdown=30;
+N]�Z]�]���][ۜ�
+N���\]HۛH[�[ZX��X�[ۜ�
+��^[�]�X�Z[
+B�\]Q[�[ZX��X�[ۜ�
+N��\]H�\�]HۛH
+���X�Z[
+B�\]P�\�
 
-    if(prevSig&&prevSig!==sig.dir)
-      addAlert(sig.dir==="COMPRA"?"buy":"sell","📊 "+asset.d+" — "+(sig.dir==="COMPRA"?"🟢 COMPRA":"🔴 VENTA")+" @ "+fmt(mid));
-    prevSig=sig.dir;prevScore=sig.score;
+N���\]HXY\���ۜ��Y��[Y[���][[Y[��RY
+	��\�X�[ۉ�NY��Z��[��\�S\�[�\�XY\�
+NX�]�
+J^Y�\�[[�
+^�ۜ�X�Y��[Y[���][[Y[��RY
+�\��X�\��NY�X�^�X��^�۝[�H��c��K�Y\��Y�N�X���[K�\�^OH����Ȏ�B�B�B�Y�\�[[�
+^�ۜ���Y��[Y[���][[Y[��RY
+���X[�[^�H�NY���^؝��\�X�YY�[�N؝��[��\�SI�'�#H[�[^�\���B�B�B��\�[���[��[ۈ�[��YJ�^�K\�T�
+^Y�\�\��\�Y�[ZY
+\�]\���YS�Y[��]�YNܙ[�\�[�[
 
-    await fetchAccount();
-    await fetchPositions();
+N�ۜ�\�X�[ۏ\�Y˙\�OOH���T�H�Ȑ�VH����S��ۜ���O^\XΘ\��]�\X��\�X�[ۋ��^�N�\��Q��]
+\��Q��]
+�^�JK�њ^Y
+�JK��ܘ�S�[���YK��X\�[�YY����[�K��Z[[������[�B�NY�\�T�	���
+^��K���]�[\\��Q��]
+����њ^Y
+\��]�Yό��\��]�YΌ�JN��K��ٚ]]�[\\��Q��]
+���њ^Y
+\��]�Yό��\��]�YΌ�JNB��^�ۜ����OX]�Z]\Q�]�
+��Jȋ���][ۜȋY]�������XY\�Ξˋ���]
 
-    // Update only dynamic sections (no layout rebuild)
-    updateDynamicSections();
-    // Update chart data only (no rebuild)
-    updateChart();
+K��۝[�U\H���\X�][ۋڜ�ۈ�K���N���Ӌ���[��Y�J��JB�JNY�[��]����]�\��܊�\��ܐ��_�\��ܟ�Y\��Y�_�\��܈X��Y[����X�p�ۈ�N�\�
+��!H��X�p�ۈX�Y\�N���\�X�[ۊȈ���^�JȈ��\��]���X��\�ȊNY[\�
+\�X�[ۏOOH��VH�Ș�^H����[��'����X�p�ۈX�Y\�H��\�X�[ۊȈ���^�JȈ��\��]�
+Ȉ�ٛ]
+ZY
+JN�YS[�[�[�Y�[�N]�Z]�]���][ۜ�
+N�]�Z]�]�X���[�
 
-    // Update header
-    const hdr=document.getElementById('hdr-section');
-    if(hdr)hdr.innerHTML=renderHeader();
-  }catch(e){
-    if(!silent){
-      const eb=document.getElementById("err-bar");
-      if(eb){eb.textContent="❌ "+e.message;eb.style.display="block";}
-    }
-  }
-  if(!silent){
-    const btn=document.getElementById("btn-analyze");
-    if(btn){btn.disabled=false;btn.innerHTML='🔍 Analizar';}
-  }
-}
+N\]Q[�[ZX��X�[ۜ�
+N�ۜ��Y��[Y[���][[Y[��RY
+	��\�X�[ۉ�NY��Z��[��\�S\�[�\�XY\�
+NX�]�
+J^��\�
+��c\��܈[X��\����K�Y\��Y�K�\��܈�N�B��YS�Y[��Y�[�Nܙ[�\�[�[
 
-async function openTrade(size,useSLTP){
-  if(!sess||!sig||!mid)return;
-  tradeLoading=true;renderModal();
-  const direction=sig.dir==="COMPRA"?"BUY":"SELL";
-  const body={
-    epic:asset.epic,
-    direction,
-    size:parseFloat(parseFloat(size).toFixed(2)),
-    forceOpen:true,
-    guaranteedStop:false,
-    trailingStop:false
-  };
-  if(useSLTP&&sltp){
-    body.stopLevel=parseFloat(sltp.sl.toFixed(asset.dig>3?asset.dig:2));
-    body.profitLevel=parseFloat(sltp.tp.toFixed(asset.dig>3?asset.dig:2));
-  }
-  try{
-    const r=await fetch(PROXY+"/positions",{
-      method:"POST",
-      headers:{...getH(),"Content-Type":"application/json"},
-      body:JSON.stringify(body)
-    });
-    const d=await r.json();
-    if(!r.ok)throw new Error(d.errorCode||d.error||d.message||"HTTP "+r.status);
-    toast("✅ Posición abierta: "+direction+" "+size+" "+asset.d,"success");
-    addAlert(direction==="BUY"?"buy":"sell","🏦 Posición abierta "+direction+" "+size+" "+asset.d+" @ "+fmt(mid));
-    tradeModalOpen=false;
-    await fetchPositions();await fetchAccount();
-    updateDynamicSections();
-    const hdr=document.getElementById('hdr-section');
-    if(hdr)hdr.innerHTML=renderHeader();
-  }catch(e){toast("❌ Error al abrir: "+e.message,"error");}
-  tradeLoading=false;renderModal();
-}
+NB��\�[���[��[ۈ���U�YJX[Y
+^Y�\�\��\�]\���^�ۜ����OX]�Z]\Q�]�
+��Jȋ���][ۜ�Ȋ�X[Y�Y]���SUH�XY\�Ι�]
 
-async function closeTrade(dealId){
-  if(!sess)return;
-  try{
-    const r=await fetch(PROXY+"/positions/"+dealId,{method:"DELETE",headers:getH()});
-    if(!r.ok){const d=await r.json();throw new Error(d.errorCode||d.error||"Error al cerrar");}
-    toast("✅ Posición cerrada","success");
-    await fetchPositions();await fetchAccount();
-    updateDynamicSections();
-    const hdr=document.getElementById('hdr-section');
-    if(hdr)hdr.innerHTML=renderHeader();
-  }catch(e){toast("❌ "+e.message,"error");}
-}
+_JNY�[��]����]�\��܊�\��ܐ��_�\��ܟ�\��܈[�\��\���X�p�ۈ�N�\�
+��!H��X�p�ۈ�\��YH���X��\�ȊN]�Z]�]���][ۜ�
+N�]�Z]�]�X���[�
 
-function calcLivePL(pos){
-  if(!bid&&!ask)return pos.profit||0;
-  const entryPrice=pos.openLevel||pos.openPrice||pos.level||0;
-  if(!entryPrice)return pos.profit||0;
-  const currentPrice=pos.direction==='BUY'?(bid||mid):(ask||mid);
-  const dir=pos.direction==='BUY'?1:-1;
-  const diff=(currentPrice-entryPrice)*dir;
-  // Use API profit if available and close to our estimate; otherwise estimate
-  if(pos.profit!=null&&Math.abs(pos.profit)>0)return pos.profit;
-  return diff*(pos.size||0.1)*(asset.dig>=5?100000:1);
-}
+N\]Q[�[ZX��X�[ۜ�
+N�ۜ��Y��[Y[���][[Y[��RY
+	��\�X�[ۉ�NY��Z��[��\�S\�[�\�XY\�
+NX�]�
+J^��\�
+��c��K�Y\��Y�K�\��܈�N�B�B���[��[ۈ�[�]�T
+��^Y�X�Y	��X\��\�]\���˜�ٚ]�ۜ�[��T�X�O\�˛�[�]�[�˛�[��X�_�˛]�[Y�Y[��T�X�J\�]\���˜�ٚ]�ۜ��\��[��X�O\�˙\�X�[ۏOOIЕVI���YZY
+N�\��ZY
+N�ۜ�\�\�˙\�X�[ۏOOIЕVI��N�LN�ۜ�Y��J�\��[��X�KY[��T�X�JJ�\���\�HTH�ٚ]Y�]�Z[X�H[����H��\�\�[X]N��\��\�H\�[X]B�Y��˜�ٚ]O[�[	��X]�X���˜�ٚ]
+O�
+\�]\���˜�ٚ]�]\��Y����˜�^�_�JJ�\��]�YϏMO�L�JNB���[��[ۈ�\�[Y\��
+^�X\�[�\��[
+]�U[Y\�N��X\�[�\��[
+��[�[Y\�N��X\�[�\��[
+[Y\�N��XZ[�[�[\�\�]�\�H��
+��^[�]�X�Z[
+B�]�U[Y\�\�][�\��[
 
-function startTimers(){
-  clearInterval(liveTimer);clearInterval(countTimer);clearInterval(plTimer);
-  // Main analysis every 30s (no layout rebuild)
-  liveTimer=setInterval(()=>{if(candles&&sess)doAnalyze(true);},30000);
-  // Countdown
-  countTimer=setInterval(()=>{
-    countdown=countdown<=1?30:countdown-1;
-    const el=document.getElementById("cd-bar");
-    if(el)el.style.width=(countdown/30*100)+"%";
-    const ct=document.getElementById("cd-text");
-    if(ct)ct.textContent=countdown+"s";
-  },1000);
-  // Live P&L refresh every 5s
-  plTimer=setInterval(()=>{
-    if(!sess||!positions.length)return;
-    const posEl=document.getElementById('pos-section');
-    if(posEl)posEl.innerHTML=renderPositions();
-  },5000);
-}
 
-/* ===== MODAL ===== */
-function openModalH(dir){
-  if(!sig)return;
-  sig.dir=dir==="BUY"?"COMPRA":"VENTA";
-  tradeModalOpen=true;renderModal();
-}
-function closeModal(){tradeModalOpen=false;renderModal();}
-function openTradeH(){
-  const size=tradeMode==='lots'
-    ?parseFloat(document.getElementById('trade-size')?.value||'0.1')
-    :Math.max(0.01,parseFloat(document.getElementById('trade-amount')?.value||0)/(mid*leverage*1000));
-  openTrade(size.toFixed(2),true);
-}
-function renderModal(){
-  const root=document.getElementById("modal-root");
-  if(!tradeModalOpen){root.innerHTML="";return;}
-  const buy=sig?.dir==="COMPRA";
-  const bc=buy?"#10b981":"#ef4444";
-  root.innerHTML=`
-  <div class="modal-bg" onclick="closeModal()">
-    <div class="modal-box" onclick="event.stopPropagation()" style="border-top:3px solid ${bc}">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
-        <div style="font-size:18px;font-weight:900;color:${bc}">${buy?"📊 ABRIR COMPRA":"📊 ABRIR VENTA"}</div>
-        <button onclick="closeModal()" class="btn btn-ghost" style="padding:5px 10px">✕</button>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px">
-        ${[["Precio",fmt(mid),"💱"],["Stop Loss",sltp?fmt(sltp.sl):"—","🔴"],["Take Profit",sltp?fmt(sltp.tp):"—","🟢"]].map(x=>`
-          <div style="background:#0a0f1c;border-radius:8px;padding:8px;text-align:center;border:1px solid #1e2d45">
-            <div style="font-size:9px;color:#64748b;margin-bottom:3px">${x[2]} ${x[0]}</div>
-            <div style="font-size:12px;font-weight:800;color:#fff;font-family:monospace">${x[1]}</div>
-          </div>`).join("")}
-      </div>
-      <div style="display:flex;gap:6px;margin-bottom:12px">
-        <button onclick="tradeMode='lots';renderModal()" class="btn ${tradeMode==='lots'?'btn-primary':'btn-ghost'}" style="flex:1;font-size:11px">📦 Lotes</button>
-        <button onclick="tradeMode='amount';renderModal()" class="btn ${tradeMode==='amount'?'btn-primary':'btn-ghost'}" style="flex:1;font-size:11px">💵 Monto ($)</button>
-      </div>
-      ${tradeMode==='lots'?`
-        <label style="font-size:11px;color:#64748b;display:block;margin-bottom:6px">Tamaño en lotes</label>
-        <div style="display:flex;gap:6px;margin-bottom:14px">
-          <input id="trade-size" type="number" value="0.1" min="0.01" step="0.01" class="modal-inp" style="flex:1"/>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px">
-            ${["0.01","0.1","0.5","1.0"].map(s=>`<button onclick="document.getElementById('trade-size').value='${s}'" class="btn btn-ghost" style="padding:4px;font-size:10px">${s}</button>`).join('')}
-          </div>
-        </div>
-      `:`
-        <label style="font-size:11px;color:#64748b;display:block;margin-bottom:6px">Monto a invertir ($)</label>
-        <input id="trade-amount" type="number" value="${Math.round(capital*risk/100)}" min="1" step="1" class="modal-inp" style="margin-bottom:4px"/>
-        <div style="font-size:10px;color:#64748b;margin-bottom:14px">≈ ${mid&&leverage?((capital*risk/100)/(mid*leverage*1000)).toFixed(4):'-'} lotes</div>
-      `}
-      <div class="warn" style="margin-bottom:14px">⚠️ Operación con apalancamiento ${leverage}x. Verifica antes de confirmar.</div>
-      <div style="display:grid;grid-template-columns:1fr 2fr;gap:8px">
-        <button onclick="closeModal()" class="btn btn-ghost">Cancelar</button>
-        <button onclick="openTradeH()" ${tradeLoading?"disabled":""} class="btn ${buy?"btn-green":"btn-red"}" style="font-size:14px">
-          ${tradeLoading?'<span style="animation:spin .8s linear infinite;display:inline-block">🔄</span> Abriendo...':buy?"🟢 CONFIRMAR COMPRA":"🔴 CONFIRMAR VENTA"}
-        </button>
-      </div>
-    </div>
-  </div>`;
-}
+OO��Y��[�\ɉ��\��Y�[�[^�J�YJN�K�
+N����[��ۂ���[�[Y\�\�][�\��[
 
-/* ===== RENDER HELPERS ===== */
-function renderHeader(){
-  if(!sess)return'';
-  return`
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:10px;flex-wrap:wrap">
-    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-      <div style="font-size:28px">${asset.flag}</div>
-      <div>
-        <div style="font-size:22px;font-weight:900;font-family:monospace;color:#fff">${fmt(mid)}</div>
-        <div style="font-size:11px;color:#64748b">${asset.name} · ${asset.d}</div>
-      </div>
-      ${mid&&bid?`
-      <div style="display:flex;gap:5px">
-        <div style="background:#0d1525;border:1px solid #1e2d45;padding:4px 8px;border-radius:6px;text-align:center;font-size:10px">
-          <div style="color:#64748b">BID</div><div style="color:#fff;font-weight:700;font-family:monospace">${fmt(bid)}</div>
-        </div>
-        <div style="background:#0d1525;border:1px solid #1e2d45;padding:4px 8px;border-radius:6px;text-align:center;font-size:10px">
-          <div style="color:#64748b">ASK</div><div style="color:#fff;font-weight:700;font-family:monospace">${fmt(ask)}</div>
-        </div>
-      </div>`:''}
-    </div>
-    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-      ${balance!=null?`<div style="background:#0d1525;border:1px solid #1e2d45;border-radius:8px;padding:6px 10px;font-size:12px">💰 <b>$${parseFloat(balance).toFixed(2)}</b> <span style="color:#64748b">${currency}</span></div>`:''}
-      <div style="font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;${sess.demo?'background:#1a0f02;color:#f59e0b;border:1px solid #f59e0b40':'background:#021a10;color:#10b981;border:1px solid #10b98140'}">${sess.demo?"DEMO":"LIVE"}</div>
-      <button onclick="doAnalyze()" id="btn-analyze" class="btn btn-primary" style="font-size:12px;padding:8px 14px">🔍 Analizar</button>
-    </div>
-  </div>
-  <div id="err-bar" class="err" style="display:none;margin-bottom:10px"></div>
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">
-    <div style="display:flex;gap:4px;flex-wrap:wrap">
-      ${TFS.map((tf,i)=>`<button class="tf-btn ${tfIdx===i?'on':''}" onclick="tfIdx=${i};destroyChart();layoutReady=false;doAnalyze()">${tf.i}</button>`).join('')}
-    </div>
-    <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#64748b">
-      <span>🔄 Próxima: <span id="cd-text" style="color:#fff;font-weight:700">${countdown}s</span></span>
-    </div>
-  </div>
-  <div class="cd-wrap"><div id="cd-bar" class="cd-bar" style="width:${countdown/30*100}%"></div></div>`;
-}
 
-function renderSigCard(){
-  if(!sig)return`<div class="card" style="text-align:center;color:#64748b;padding:36px;margin-bottom:12px"><div style="font-size:32px;margin-bottom:8px">🔍</div>Presiona Analizar para obtener señal</div>`;
-  const buy=sig.dir==="COMPRA";
-  const bc=buy?"#10b981":"#ef4444";
-  const emerging=sig.emerging;
-  if(emerging){
-    return`
-    <div class="sig-prep" style="margin-bottom:12px">
-      <div style="font-size:10px;color:#fde68a;font-weight:700;letter-spacing:1px;margin-bottom:4px">⚡ SEÑAL EMERGENTE</div>
-      <div style="font-size:24px;font-weight:900;color:#f59e0b;line-height:1">${buy?"▲ PREPARANDO COMPRA":"▼ PREPARANDO VENTA"}</div>
-      <div style="font-size:11px;color:#fde68a;margin-top:4px">Confirmación en progreso · Score: ${sig.score}</div>
-      <div class="conf-bar" style="margin-top:8px"><div class="conf-fill" style="width:${sig.conf}%;background:#f59e0b"></div></div>
-      <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px">
-        ${sig.reasons.slice(0,4).map(r=>`<span style="background:#1a0e02;color:#fde68a;border-radius:5px;padding:3px 8px;font-size:9px;font-weight:600;border:1px solid #f59e0b30">${r}</span>`).join('')}
-      </div>
-    </div>`;
-  }
-  return`
-  <div class="sig-big ${buy?'sig-buy':'sig-sell'}" style="margin-bottom:12px">
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
-      <div>
-        <div style="font-size:10px;color:${buy?'#6ee7b7':'#fca5a5'};font-weight:700;letter-spacing:1px;margin-bottom:4px">⚡ PREDICCIÓN IA · ${sig.strength}</div>
-        <div style="font-size:30px;font-weight:900;color:${bc};line-height:1">${buy?"▲ COMPRAR":"▼ VENDER"}</div>
-      </div>
-      <div style="text-align:right">
-        <div style="font-size:36px;font-weight:900;color:#fff;line-height:1">${sig.conf}%</div>
-        <div style="font-size:10px;color:${buy?'#6ee7b7':'#fca5a5'}">confianza</div>
-      </div>
-    </div>
-    <div class="conf-bar"><div class="conf-fill" style="width:${sig.conf}%;background:${bc}"></div></div>
-    <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:4px">
-      ${sig.reasons.slice(0,6).map(r=>`<span style="background:${buy?'#021a10':'#1a0202'};color:${buy?'#6ee7b7':'#fca5a5'};border-radius:5px;padding:3px 8px;font-size:9px;font-weight:600;border:1px solid ${bc}30">${r}</span>`).join('')}
-    </div>
-    ${sltp?`
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:12px">
-      <div style="background:#0a0f1c;border-radius:8px;padding:8px;border:1px solid #ef444440">
-        <div style="font-size:9px;color:#ef4444;margin-bottom:2px">🔴 Stop Loss</div>
-        <div style="font-size:14px;font-weight:800;color:#fff;font-family:monospace">${fmt(sltp.sl)}</div>
-      </div>
-      <div style="background:#0a0f1c;border-radius:8px;padding:8px;border:1px solid #10b98140">
-        <div style="font-size:9px;color:#10b981;margin-bottom:2px">🟢 Take Profit</div>
-        <div style="font-size:14px;font-weight:800;color:#fff;font-family:monospace">${fmt(sltp.tp)}</div>
-      </div>
-    </div>`:''}
-  </div>`;
-}
+OO���[��ۏX��[��ۏLO�����[��ۋLN�ۜ�[Y��[Y[���][[Y[��RY
+��X�\��NY�[
+Y[��[K��YJ��[��ۋ��
+�L
+JȉH��ۜ��Y��[Y[���][[Y[��RY
+��]^�NY��
+X��^�۝[�X��[��ۊȜȎKL
+N��]�H	��Y��\�]�\�H
+\[Y\�\�][�\��[
 
-function renderTrendBar(){
-  if(!trendInfo)return'';
-  const t=trendInfo;
-  return`
-  <div class="trend-wrap" style="background:${t.bg};border:1px solid ${t.color}50;margin-bottom:12px">
-    <div style="font-size:26px">${t.icon}</div>
-    <div style="flex:1">
-      <div style="font-size:13px;font-weight:800;color:${t.color}">${t.str}</div>
-      <div style="font-size:10px;color:#94a3b8">${t.sub}</div>
-    </div>
-    <div style="font-size:10px;color:#64748b;text-align:right;font-family:monospace">
-      EMA9: <span style="color:#fff">${fmt(ind?.ema9)}</span><br/>
-      EMA21: <span style="color:#fff">${fmt(ind?.ema21)}</span>
-    </div>
-  </div>`;
-}
 
-function renderIndicators(){
-  if(!ind)return`<div style="color:#64748b;font-size:11px;grid-column:1/-1;text-align:center;padding:20px">Sin datos de indicadores</div>`;
-  const items=[
-    {k:"RSI (14)",v:ind.rsi.toFixed(1),
-      s:ind.rsi<30?"🟢 Sobrevendido":ind.rsi>70?"🔴 Sobrecomprado":ind.rsi<45?"↗ Neutro-Alcista":"↘ Neutro-Bajista",
-      c:ind.rsi<30?"#10b981":ind.rsi>70?"#ef4444":ind.rsi<50?"#10b981":"#ef4444",
-      bar:ind.rsi,bg:"linear-gradient(90deg,#10b981,#f59e0b,#ef4444)"},
-    {k:"MACD (12,26,9)",v:ind.macd.toFixed(asset.dig>3?5:4),
-      s:ind.macd>0&&ind.hist>0?"🟢 Alcista fuerte":ind.macd<0&&ind.hist<0?"🔴 Bajista fuerte":ind.hist>0?"↗ Cruce alcista":"↘ Cruce bajista",
-      c:ind.macd>0?"#10b981":"#ef4444",
-      bar:Math.min(100,Math.max(0,50+(ind.hist/(ind.atr||0.001)*50))),bg:"linear-gradient(90deg,#ef4444,#6366f1,#10b981)"},
-    {k:"Estocástico %K",v:ind.stochK.toFixed(1)+"%",
-      s:ind.stochK<20?"🟢 Sobrevendido":ind.stochK>80?"🔴 Sobrecomprado":"⚪ Zona normal",
-      c:ind.stochK<20?"#10b981":ind.stochK>80?"#ef4444":"#94a3b8",
-      bar:ind.stochK,bg:"linear-gradient(90deg,#10b981,#f59e0b,#ef4444)"},
-    {k:"ADX · Williams %R",v:ind.adx.toFixed(0)+"  /  "+ind.willR.toFixed(0),
-      s:ind.adx>40?"💪 Tendencia muy fuerte":ind.adx>25?"📊 Tendencia fuerte":"⚪ Débil · W%R: "+(ind.willR<-80?"SV":ind.willR>-20?"SC":"N"),
-      c:ind.adx>25?"#10b981":"#94a3b8",
-      bar:Math.min(ind.adx,100),bg:"linear-gradient(90deg,#1e2d45,#6366f1,#10b981)"}
-  ];
-  return items.map(it=>`
-    <div class="ind-box">
-      <div class="ind-lbl">${it.k}</div>
-      <div class="ind-val" style="color:${it.c};font-size:15px">${it.v}</div>
-      <div class="ind-sub" style="color:${it.c}">${it.s}</div>
-      <div class="ind-gauge"><div class="ind-gauge-fill" style="width:${it.bar}%;background:${it.c}"></div></div>
-    </div>`).join('');
-}
+OO�Y�\�\��\��][ۜ˛[��
+\�]\���ۜ���[Y��[Y[���][[Y[��RY
+	���\�X�[ۉ�NY���[
+\��[�[��\�S\�[�\���][ۜ�
+NK
+L
+NB��ʈOOOOHS�SOOOOH
+��[��[ۈ�[�[�[
+\�^Y�\�Y�\�]\���Y˙\�Y\�OOH��VH�Ȑ��T�H����S�H��YS[�[�[�]�YNܙ[�\�[�[
 
-function renderTradeButtons(){
-  if(!sig)return'';
-  const buy=sig.dir==="COMPRA";
-  return`
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
-    <button onclick="openModalH('BUY')" class="btn ${buy?'btn-green':'btn-ghost'}" style="font-size:13px;padding:13px;${buy?'':'opacity:.7'}">▲ COMPRAR</button>
-    <button onclick="openModalH('SELL')" class="btn ${!buy?'btn-red':'btn-ghost'}" style="font-size:13px;padding:13px;${!buy?'':'opacity:.7'}">▼ VENDER</button>
-  </div>`;
-}
+NB��[��[ۈ���S[�[
 
-function renderPositions(){
-  if(!positions||!positions.length)return'';
-  return`
-  <div class="card" style="margin-bottom:12px">
-    <div style="font-size:12px;font-weight:700;color:#fff;margin-bottom:10px">📂 Posiciones Abiertas (${positions.length})</div>
-    ${positions.map(p=>{
-      const pl=calcLivePL(p);
-      const plC=pl>=0?"#10b981":"#ef4444";
-      const plPct=balance?((pl/balance)*100).toFixed(2):null;
-      return`
-      <div class="pos-item">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-          <div style="display:flex;align-items:center;gap:8px">
-            <span style="font-weight:900;color:${p.direction==="BUY"?"#10b981":"#ef4444"};font-size:14px;background:${p.direction==="BUY"?"#021a10":"#1a0202"};padding:3px 8px;border-radius:6px">${p.direction==="BUY"?"▲ BUY":"▼ SELL"}</span>
-            <span style="color:#fff;font-weight:700;font-size:13px">${p.size} <span style="color:#94a3b8;font-size:11px">${p.epic||asset.d}</span></span>
-          </div>
-          <button onclick="closeTrade('${p.dealId}')" class="btn btn-ghost" style="font-size:10px;padding:4px 10px;color:#ef4444;border-color:#ef444430">Cerrar ✕</button>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
-          <div style="background:#060a14;border-radius:6px;padding:5px 8px">
-            <div style="font-size:9px;color:#475569">Entrada</div>
-            <div style="font-size:11px;font-weight:700;color:#fff;font-family:monospace">${fmt(p.openLevel||p.openPrice||p.level)}</div>
-          </div>
-          <div style="background:#060a14;border-radius:6px;padding:5px 8px">
-            <div style="font-size:9px;color:#475569">Actual</div>
-            <div style="font-size:11px;font-weight:700;color:#6366f1;font-family:monospace">${fmt(mid)}</div>
-          </div>
-          <div style="background:${pl>=0?"#021a10":"#1a0202"};border-radius:6px;padding:5px 8px;border:1px solid ${plC}30">
-            <div style="font-size:9px;color:#475569">P&L</div>
-            <div class="pl-live" style="font-size:12px;font-weight:900;color:${plC};font-family:monospace">${pl>=0?'+':''}$${typeof pl==='number'?pl.toFixed(2):'—'}${plPct?` (${pl>=0?'+':''}${plPct}%)`:''}</div>
-          </div>
-        </div>
-        ${(p.stopLevel||p.limitLevel)?`
-        <div style="display:flex;gap:10px;margin-top:5px;font-size:10px;color:#64748b">
-          ${p.stopLevel?`<span>🔴 SL: <b style="color:#ef4444;font-family:monospace">${fmt(p.stopLevel)}</b></span>`:''}
-          ${p.limitLevel?`<span>🟢 TP: <b style="color:#10b981;font-family:monospace">${fmt(p.limitLevel)}</b></span>`:''}
-        </div>`:''}
-      </div>`;
-    }).join('')}
-    ${positions.length>0&&balance?`
-    <div style="margin-top:8px;padding-top:8px;border-top:1px solid #1e2d45;display:flex;justify-content:space-between;font-size:11px">
-      <span style="color:#64748b">P&L Total:</span>
-      <span style="font-weight:800;color:${positions.reduce((a,p)=>a+calcLivePL(p),0)>=0?'#10b981':'#ef4444'}">
-        ${(()=>{const t=positions.reduce((a,p)=>a+calcLivePL(p),0);return(t>=0?'+':'')+'$'+t.toFixed(2);})()}
-      </span>
-    </div>`:''}
-  </div>`;
-}
+^��YS[�[�[�Y�[�Nܙ[�\�[�[
 
-function renderAlerts(){
-  if(!alertLog.length)return'';
-  return`
-  <div class="card" style="margin-top:12px">
-    <div style="font-size:12px;font-weight:700;color:#fff;margin-bottom:8px">🔔 Historial de Señales</div>
-    <div style="max-height:200px;overflow-y:auto">
-      ${alertLog.slice(0,15).map(a=>`
-        <div style="background:${a.type==="buy"?"#021a10":"#1a0202"};border-radius:6px;padding:6px 8px;margin-bottom:3px;font-size:10px;display:flex;gap:8px;align-items:center">
-          <span style="color:#475569;white-space:nowrap;font-family:monospace">${a.time}</span>
-          <span style="color:#e2e8f0">${a.msg}</span>
-        </div>`).join('')}
-    </div>
-  </div>`;
-}
+N�B��[��[ۈ�[��YR
 
-function renderSRSection(){
-  if(!window._sr?.length)return'';
-  return`
-  <div class="card" style="margin-bottom:12px">
-    <div style="font-size:12px;font-weight:700;color:#fff;margin-bottom:8px">📌 Soportes y Resistencias</div>
-    ${window._sr.slice(0,6).map(lv=>`
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #1e2d4530">
-        <div style="display:flex;align-items:center;gap:6px">
-          <span style="font-size:10px;font-weight:700;color:${lv.type==='R'?'#ef4444':'#10b981'}">${lv.type==='R'?'🔴 Resistencia':'🟢 Soporte'}</span>
-          <span style="font-size:9px;color:#475569">×${lv.strength}</span>
-        </div>
-        <span style="font-size:12px;font-weight:800;color:#fff;font-family:monospace">${fmt(lv.price)}</span>
-      </div>`).join('')}
-  </div>`;
-}
+^�ۜ��^�O]�YS[�OOOI����\��Q��]
+��[Y[���][[Y[��RY
+	��YK\�^�I�O˝�[Y_	��I�B��X]�X^
+�K\��Q��]
+��[Y[���][[Y[��RY
+	��YKX[[�[�	�O˝�[Y_
+K�ZY
+�]�\�Y�J�L
+JN�[��YJ�^�K�њ^Y
+�K�YJNB��[��[ۈ�[�\�[�[
 
-/* ===== LAYOUT BUILDER (called once) ===== */
-function buildMainLayout(){
-  const root=document.getElementById('app');
-  if(!root)return;
-  const isMobile=view==='phone';
-  layoutViewMode=view;
+^�ۜ����Y��[Y[���][[Y[��RY
+�[�[\����NY�]�YS[�[�[�^ܛ���[��\�SH��ܙ]\���B��ۜ��^O\�Y�˙\�OOH���T�H��ۜ���X�^OȈ�L�NH����Y�
 
-  if(isMobile){
-    root.innerHTML=`
-      <div id="hdr-section"></div>
-      <div style="display:flex;gap:4px;overflow-x:auto;padding-bottom:4px;margin-bottom:8px" id="mob-assets-row"></div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(68px,1fr));gap:4px;margin-bottom:10px" id="mob-assets-grid"></div>
-      <div class="card" style="margin-bottom:10px;padding:8px">
-        <div id="chart-container" style="height:260px;border-radius:8px;overflow:hidden"></div>
-      </div>
-      <div id="sig-section"></div>
-      <div id="trend-section"></div>
-      <div id="ind-section" class="ind-grid" style="margin-bottom:12px"></div>
-      <div id="trade-btns-section"></div>
-      <div id="pos-section"></div>
-      <div id="alerts-section"></div>`;
-  }else{
-    root.innerHTML=`
-      <div id="hdr-section"></div>
-      <div style="display:grid;grid-template-columns:1fr 340px;gap:14px;align-items:start">
-        <div>
-          <div class="card" style="margin-bottom:12px;padding:10px">
-            <div id="chart-container" style="height:380px;border-radius:8px;overflow:hidden"></div>
-            <div id="chart-info-bar" style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:10px;color:#475569">
-              <span>🖱️ Scroll para zoom · Arrastrar para mover</span>
-            </div>
-          </div>
-          <div id="ind-section" class="ind-grid" style="margin-bottom:12px"></div>
-          <div id="pos-section"></div>
-          <div id="alerts-section"></div>
-        </div>
-        <div>
-          <div id="sig-section"></div>
-          <div id="trend-section"></div>
-          <div id="trade-btns-section"></div>
-          <div id="sr-section"></div>
-        </div>
-      </div>`;
-  }
 
-  layoutReady=true;
-  buildChart();
-}
+�����[��\�SX�]��\��H�[�[X�Ȉۘ�X��H����S[�[
 
-function updateDynamicSections(){
-  const isMobile=view==='phone';
+H���]��\��H�[�[X���ۘ�X��H�]�[������Y�][ۊ
+H��[OH��ܙ\�]�����Y	ؘ�H���]��[OH�\�^N��^ڝ\�Y�KX�۝[���X�KX�]�Y[��[YۋZ][\Θ�[�\��X\��[�X���N�N���]��[OH��۝\�^�N�Nٛ۝]�ZY��L���܎�ؘ�H��؝^Oȼ'��P��T���T�H���'��P��T��S�H�O�]����]ۈۘ�X��H����S[�[
 
-  // Header
-  const hdr=document.getElementById('hdr-section');
-  if(hdr)hdr.innerHTML=renderHeader();
+H��\��H�����Y�����[OH�Y[�΍\L���%O؝]ۏ���]���]��[OH�\�^N�ܚY�ܚY][\]KX��[[�ΌY��Y��Y����\��X\��[�X���N�M����	��Ȕ�X�[ȋ�]
+ZY
+K�'�H�KȔ����ȋ�ٛ]
+���
+N���%��'�-�KȕZ�H�ٚ]��ٛ]
+��
+N���%��'�舗WK�X\
+O��]��[OH��X��ܛ�[���L�X�؛ܙ\�\�Y]\Ύ�Y[�Ύ�^X[Yێ��[�\�؛ܙ\��\��Y�YL�
 
-  // Mobile asset strips
-  if(isMobile){
-    const ar=document.getElementById('mob-assets-row');
-    if(ar)ar.innerHTML=Object.keys(ASSETS).slice(1).map(c=>`<button onclick="cat='${c.replace(/'/g,"\\'")}';renderAssetList()" style="padding:5px 10px;border-radius:7px;border:1px solid ${cat===c?'#6366f1':'#1e2d45'};background:${cat===c?'#1a1f35':'#0d1525'};color:#fff;font-size:10px;cursor:pointer;white-space:nowrap">${c}</button>`).join('');
-    const ag=document.getElementById('mob-assets-grid');
-    if(ag)ag.innerHTML=(ASSETS[cat]||[]).slice(0,8).map(a=>`
-      <button onclick="selectAsset('${a.epic}')" style="border:1px solid ${a.epic===asset.epic?'#6366f1':'#1e2d45'};border-radius:8px;background:${a.epic===asset.epic?'#1a1f35':'#0d1525'};color:#fff;padding:7px;text-align:center;cursor:pointer;font-size:9px">
-        <div style="font-size:18px">${a.flag}</div><div style="margin-top:2px">${a.d}</div>
-      </button>`).join('');
-  }
+H���]��[OH��۝\�^�N�\���܎�͍
+���X\��[�X���N�����̗_H	��_O�]���]��[OH��۝\�^�N�L�ٛ۝]�ZY�����܎�ٙ��ٛ۝Y�[Z[N�[ۛ��X�H����W_O�]����]��
+K���[���_B��]���]��[OH�\�^N��^��\���X\��[�X���N�L�����]ۈۘ�X��H��YS[�OI����ܙ[�\�[�[
 
-  // Chart info bar
-  const cib=document.getElementById('chart-info-bar');
-  if(cib)cib.innerHTML=`<span>🖱️ Scroll para zoom · Arrastrar para mover</span>${window._sr?.length?`<span>📌 ${window._sr.length} niveles S&R identificados</span>`:''}`;
+H��\��H���	��YS[�OOOI�����؝�\�[X\�IΉ؝�Y���	�H��[OH��^�Nٛ۝\�^�N�L\��'���\�؝]ۏ���]ۈۘ�X��H��YS[�OI�[[�[�	�ܙ[�\�[�[
 
-  // Signal
-  const sigEl=document.getElementById('sig-section');
-  if(sigEl)sigEl.innerHTML=renderSigCard();
+H��\��H���	��YS[�OOOI�[[�[�	��؝�\�[X\�IΉ؝�Y���	�H��[OH��^�Nٛ۝\�^�N�L\��'�H[۝�
+	
+O؝]ۏ���]���	��YS[�OOOI������X�[�[OH��۝\�^�N�L\���܎�͍
+���\�^N������X\��[�X���N����[Xp�[�[��\��X�[��]��[OH�\�^N��^��\���X\��[�X���N�M���[�]YH��YK\�^�H�\OH��[X�\���[YOH��H�Z[�H��H��\H��H��\��H�[�[Z[���[OH��^�H�ς�]��[OH�\�^N�ܚY�ܚY][\]KX��[[�ΌY��Y����\�����	�Ȍ�H���H���H��K��K�X\
+�O��]ۈۘ�X��H���[Y[���][[Y[��RY
+	��YK\�^�I�K��[YOI���IȈ�\��H�����Y�����[OH�Y[�΍ٛ۝\�^�N�L����O؝]ۏ�
+K���[�	��_B��]����]�����X�[�[OH��۝\�^�N�L\���܎�͍
+���\�^N������X\��[�X���N����[۝�H[��\�\�
+	
+O�X�[��[�]YH��YKX[[�[��\OH��[X�\���[YOH��X]���[�
+�\][
+��\���L
+_H�Z[�H�H��\H�H��\��H�[�[Z[���[OH�X\��[�X���N��ς�]��[OH��۝\�^�N�L���܎�͍
+���X\��[�X���N�M���b	�ZY	��]�\�Y�O�
+�\][
+��\���L
+K�ZY
+�]�\�Y�J�L
+JK�њ^Y
 
-  // Trend
-  const trEl=document.getElementById('trend-section');
-  if(trEl)trEl.innerHTML=renderTrendBar();
+N��I�H�\��]���B�]��\��H��\����[OH�X\��[�X���N�M����;�#��\�X�p�ۈ�ۈ\[[��[ZY[��	�]�\�Y�_^��\�Y�X�H[�\�H�ۙ�\�X\���]���]��[OH�\�^N�ܚY�ܚY][\]KX��[[�ΌY�������\�����]ۈۘ�X��H����S[�[
 
-  // Indicators
-  const indEl=document.getElementById('ind-section');
-  if(indEl)indEl.innerHTML=renderIndicators();
+H��\��H�����Y������[��[\�؝]ۏ���]ۈۘ�X��H��[��YR
 
-  // Trade buttons
-  const tbEl=document.getElementById('trade-btns-section');
-  if(tbEl)tbEl.innerHTML=sig?renderTradeButtons():'';
+H�	��YS�Y[��ș\�X�Y����H�\��H���	؝^OȘ��YܙY[������\�Y�H��[OH��۝\�^�N�M���	��YS�Y[�����[��[OH�[�[X][ێ��[���[�X\�[��[�]N�\�^N�[�[�KX���ȏ�'�!��[��X��Y[�ˋ��Θ�^Oȼ'���ӑ�T�PT���T�H���'�-�ӑ�T�PT��S�H�B�؝]ۏ���]����]����]��B��ʈOOOOH�S�T�ST��OOOOH
+��[��[ۈ�[�\�XY\�
+^Y�\�\��\�]\�����]\���]��[OH�\�^N��^�[YۋZ][\Θ�[�\�ڝ\�Y�KX�۝[���X�KX�]�Y[��X\��[�X���N�L���\�Lٛ^]ܘ\�ܘ\���]��[OH�\�^N��^�[YۋZ][\Θ�[�\���\�Lٛ^]ܘ\�ܘ\���]��[OH��۝\�^�N�����\��]��Y�O�]���]���]��[OH��۝\�^�N���ٛ۝]�ZY��Lٛ۝Y�[Z[N�[ۛ��X�N���܎�ٙ����ٛ]
+ZY
+_O�]���]��[OH��۝\�^�N�L\���܎�͍
+�����\��]��[Y_H0��	�\��]�O�]����]���	�ZY	���Y��]��[OH�\�^N��^��\�\���]��[OH��X��ܛ�[���ML�N؛ܙ\��\��Y�YL�
 
-  // Positions
-  const posEl=document.getElementById('pos-section');
-  if(posEl)posEl.innerHTML=renderPositions();
+N�Y[�΍؛ܙ\�\�Y]\΍��^X[Yێ��[�\�ٛ۝\�^�N�L���]��[OH���܎�͍
+�����Q�]��]��[OH���܎�ٙ��ٛ۝]�ZY���ٛ۝Y�[Z[N�[ۛ��X�H��ٛ]
+�Y
+_O�]����]���]��[OH��X��ܛ�[���ML�N؛ܙ\��\��Y�YL�
 
-  // Alerts
-  const alEl=document.getElementById('alerts-section');
-  if(alEl)alEl.innerHTML=renderAlerts();
+N�Y[�΍؛ܙ\�\�Y]\΍��^X[Yێ��[�\�ٛ۝\�^�N�L���]��[OH���܎�͍
+����T���]��]��[OH���܎�ٙ��ٛ۝]�ZY���ٛ۝Y�[Z[N�[ۛ��X�H��ٛ]
+\��_O�]����]����]�����B��]���]��[OH�\�^N��^�[YۋZ][\Θ�[�\���\��ٛ^]ܘ\�ܘ\���	ؘ[[��HO[�[�]��[OH��X��ܛ�[���ML�N؛ܙ\��\��Y�YL�
 
-  // SR section (PC only)
-  const srEl=document.getElementById('sr-section');
-  if(srEl)srEl.innerHTML=renderSRSection();
-}
+N؛ܙ\�\�Y]\Ύ�Y[�΍�Lٛ۝\�^�N�L���'���	�\��Q��]
+�[[��JK�њ^Y
+�_O؏��[��[OH���܎�͍
+������\��[��_O��[���]�����B�]��[OH��۝\�^�N�L\ٛ۝]�ZY����Y[�΍\L؛ܙ\�\�Y]\΍����\�˙[[��ؘX��ܛ�[���XL�����܎�ٍNYL�؛ܙ\��\��YٍNYL�	ΉؘX��ܛ�[����XLL���܎��L�NN؛ܙ\��\��Y�L�NM	�H����\�˙[[�ȑSSȎ��U�H�O�]����]ۈۘ�X��H��[�[^�J
+H�YH���X[�[^�H��\��H�����\�[X\�H��[OH��۝\�^�N�L��Y[�ΎM��'�#H[�[^�\�؝]ۏ���]����]���]�YH�\��X�\���\��H�\����[OH�\�^N��ۙN�X\��[�X���N�L���]���]��[OH�\�^N��^�[YۋZ][\Θ�[�\�ڝ\�Y�KX�۝[���X�KX�]�Y[��X\��[�X���N�ٛ^]ܘ\�ܘ\��\����]��[OH�\�^N��^��\�ٛ^]ܘ\�ܘ\���	��˛X\
 
-/* ===== MAIN RENDER ===== */
-function render(){
-  const root=document.getElementById("app");
-  if(!root)return;
+�JOO��]ۈ�\��H��X��	��YOOZO��ۉΉ��H�ۘ�X��H��YI�_N�\���P�\�
 
-  // Login screen
-  if(!sess){
-    layoutReady=false;
-    destroyChart();
-    root.innerHTML=`
-    <div style="min-height:90vh;display:flex;align-items:center;justify-content:center;padding:16px">
-      <div class="card" style="max-width:400px;width:100%;padding:28px">
-        <div style="text-align:center;margin-bottom:28px">
-          <div style="font-size:48px;margin-bottom:10px">📈</div>
-          <h2 style="color:#fff;font-size:24px;font-weight:900">Trading AI Predictor</h2>
-          <p style="color:#6366f1;font-size:13px;font-weight:600;margin-top:4px">v6.1 · Powered by Capital.com</p>
-        </div>
-        <div id="l-err" class="err" style="display:none;margin-bottom:14px"></div>
-        <input id="l-key" placeholder="🔑 API Key" class="modal-inp" style="margin-bottom:10px"/>
-        <input id="l-email" placeholder="📧 Email" class="modal-inp" style="margin-bottom:10px"/>
-        <input id="l-pass" type="password" placeholder="🔒 Password" class="modal-inp" style="margin-bottom:14px"/>
-        <label style="display:flex;align-items:center;gap:8px;margin-bottom:18px;color:#94a3b8;font-size:13px;cursor:pointer">
-          <input id="l-demo" type="checkbox" checked style="width:16px;height:16px;accent-color:#6366f1"/> Cuenta DEMO
-        </label>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-          <div id="srv-badge">${srvBadge()}</div>
-          <div style="font-size:10px;color:#475569">Render free tier</div>
-        </div>
-        <button id="l-btn" onclick="doLogin()" class="btn btn-green" style="width:100%;font-size:15px;padding:14px">🔌 Conectar a Capital.com</button>
-        <p style="font-size:10px;color:#475569;text-align:center;margin-top:12px">La primera conexión del día puede tardar hasta 60 segundos</p>
-      </div>
-    </div>`;
-    return;
-  }
+N��[�[^�J
+H�����_O؝]ۏ�
+K���[�	��_B��]���]��[OH�\�^N��^�[YۋZ][\Θ�[�\���\��ٛ۝\�^�N�L\���܎�͍
+������[��'�!���[XN��[�YH��]^��[OH���܎�ٙ��ٛ۝]�ZY��������[��۟\���[����[����]����]���]��\��H��]ܘ\��]�YH��X�\���\��H��X�\���[OH��Y����[��ۋ��
+�LIH���]���]��B���[��[ۈ�[�\��Y��\�
 
-  // Build main layout if needed (only once or when view changes)
-  if(!layoutReady||layoutViewMode!==view||!document.getElementById('chart-container')){
-    buildMainLayout();
-  }
+^Y�\�Y�\�]\��]��\��H��\���[OH�^X[Yێ��[�\����܎�͍
+���Y[�Ό͜�X\��[�X���N�L���]��[OH��۝\�^�N�̜�X\��[�X���N���'�#O�]���\�[ۘH[�[^�\�\�H؝[�\��p�X[�]���ۜ��^O\�Y˙\�OOH���T�H��ۜ���X�^OȈ�L�NH����Y�
 
-  // Update dynamic content (never touches chart-container)
-  updateDynamicSections();
 
-  // Build/update chart
-  if(!lwChart||!lwCandle){
-    buildChart();
-    setTimeout(()=>updateChart(),80);
-  } else if(candles){
-    updateChart();
-  }
+��ۜ�[Y\��[��\�Y˙[Y\��[��Y�[Y\��[��^�]\���]��\��H��Y�\�\��[OH�X\��[�X���N�L����]��[OH��۝\�^�N�L���܎�ٙM�Nٛ۝]�ZY����]\�\�X�[�Ό\�X\��[�X���N�����H�p�PSSQT��S�O�]���]��[OH��۝\�^�N��ٛ۝]�ZY��L���܎�ٍNYL��[�KZZY��H��؝^Oȸ����TT�S����T�H������TT�S���S�H�O�]���]��[OH��۝\�^�N�L\���܎�ٙM�N�X\��[�]�����ۙ�\�XX�p�ۈ[���ܙ\��0����ܙN�	��Y˜��ܙ_O�]���]��\��H��ۙ�X�\���[OH�X\��[�]����]��\��H��ۙ�Y�[��[OH��Y���Y˘�ۙ�INؘX��ܛ�[��ٍNYL����]���]���]��[OH�X\��[�]���\�^N��^ٛ^]ܘ\�ܘ\��\����	��Y˜�X\�ۜ˜�X�J
+K�X\
+�O��[��[OH��X��ܛ�[���XLL����܎�ٙM�N؛ܙ\�\�Y]\΍\�Y[�Ό�ٛ۝\�^�N�\ٛ۝]�ZY���؛ܙ\��\��YٍNYL����ܟO��[��
+K���[�	��_B��]����]��B��]\���]��\��H��Y�X�Y�	؝^O���Y�X�^IΉ��Y�\�[	�H��[OH�X\��[�X���N�L����]��[OH�\�^N��^�[YۋZ][\Ι�^\�\�ڝ\�Y�KX�۝[���X�KX�]�Y[��X\��[�X���N����]���]��[OH��۝\�^�N�L���܎�؝^O��͙YM؍�Ή�٘�MXMI�Nٛ۝]�ZY����]\�\�X�[�Ό\�X\��[�X���N�����H�QP��p�ӈPH0��	��Y˜��[��O�]���]��[OH��۝\�^�N��ٛ۝]�ZY��L���܎�ؘ�N�[�KZZY��H��؝^Oȸ�����T�T�������S�T��O�]����]���]��[OH�^X[Yێ��Y����]��[OH��۝\�^�N�͜ٛ۝]�ZY��L���܎�ٙ���[�KZZY��H����Y˘�ۙ�IO�]���]��[OH��۝\�^�N�L���܎�؝^O��͙YM؍�Ή�٘�MXMI�H���ۙ�X[��O�]����]����]���]��\��H��ۙ�X�\���]��\��H��ۙ�Y�[��[OH��Y���Y˘�ۙ�INؘX��ܛ�[��ؘ�H���]���]���]��[OH�X\��[�]��L�\�^N��^ٛ^]ܘ\�ܘ\��\����	��Y˜�X\�ۜ˜�X�J
+�K�X\
+�O��[��[OH��X��ܛ�[��؝^O����XLL	Ή��XL���N���܎�؝^O��͙YM؍�Ή�٘�MXMI�N؛ܙ\�\�Y]\΍\�Y[�Ό�ٛ۝\�^�N�\ٛ۝]�ZY���؛ܙ\��\��Y	ؘ�L���ܟO��[��
+K���[�	��_B��]���	����]��[OH�\�^N�ܚY�ܚY][\]KX��[[�ΌY��Y����\���X\��[�]��L����]��[OH��X��ܛ�[���L�X�؛ܙ\�\�Y]\Ύ�Y[�Ύ؛ܙ\��\��Y�Y�
 
-  renderModal();
-}
 
-/* ===== BOOT ===== */
-renderSidebar();
-render();
-doAnalyze(true);
-</script>
-</body>
-</html>
+
+���]��[OH��۝\�^�N�\���܎��Y�
+
+
+�X\��[�X���N����'�-������]���]��[OH��۝\�^�N�Mٛ۝]�ZY�����܎�ٙ��ٛ۝Y�[Z[N�[ۛ��X�H��ٛ]
+���
+_O�]����]���]��[OH��X��ܛ�[���L�X�؛ܙ\�\�Y]\Ύ�Y[�Ύ؛ܙ\��\��Y�L�NM���]��[OH��۝\�^�N�\���܎��L�NN�X\��[�X���N����'��Z�H�ٚ]�]���]��[OH��۝\�^�N�Mٛ۝]�ZY�����܎�ٙ��ٛ۝Y�[Z[N�[ۛ��X�H��ٛ]
+��
+_O�]����]����]�����B��]��B���[��[ۈ�[�\��[��\�
+^Y�]�[�[���\�]\�����ۜ�]�[�[����]\���]��\��H��[�]ܘ\��[OH��X��ܛ�[������N؛ܙ\��\��Y	����ܟML�X\��[�X���N�L����]��[OH��۝\�^�N�������X�۟O�]���]��[OH��^�H���]��[OH��۝\�^�N�L�ٛ۝]�ZY�����܎�����ܟH������O�]���]��[OH��۝\�^�N�L���܎��ML؎�����X�O�]����]���]��[OH��۝\�^�N�L���܎�͍
+���^X[Yێ��Y�ٛ۝Y�[Z[N�[ۛ��X�H���SPNN��[��[OH���܎�ٙ����ٛ]
+[�˙[XNJ_O��[����ς�SPL�N��[��[OH���܎�ٙ����ٛ]
+[�˙[XL�J_O��[����]����]��B���[��[ۈ�[�\�[�X�]ܜ�
+^Y�Z[�
+\�]\��]��[OH���܎�͍
+��ٛ۝\�^�N�L\�ܚYX��[[��K�LN�^X[Yێ��[�\��Y[�Ό����[�]��H[�X�Yܙ\��]���ۜ�][\�V�Έ���H
+M
+H���[����K�њ^Y
+JK�Κ[����O�ȼ'���؜�]�[�YȎ�[����O��ȼ'�-�؜�X��\�YȎ�[����O
+
+Oȸ����]]��P[�\�H������]]��P�Z�\�H��Κ[����O�Ȉ�L�NH��[����O��Ȉ�Y�
+
+
+��[����O
+LȈ�L�NH����Y�
+
+
+���\��[����K�Έ�[�X\�YܘYY[�
+LY��L�NKٍNYL��Y�
+
+
+H�K��Έ�PP�
+L���JH���[��XX��њ^Y
+\��]�Yό��N�
+K�Κ[��XX��	��[��\��ȼ'��[�\�H�Y\�H��[��XX�	��[��\�ȼ'�-�Z�\�H�Y\�H��[��\��ȸ���ܝX�H[�\�H�����ܝX�H�Z�\�H��Κ[��XX��Ȉ�L�NH����Y�
+
+
+���\��X]�Z[�LX]�X^
+
+L
+�[��\��[��]��JJ�L
+JJK�Έ�[�X\�YܘYY[�
+LY��Y�
+
+
+͍͌��K�L�NJH�K��Έ�\����\�X��	Rȋ��[�����˝њ^Y
+JJȉH��Κ[�������ȼ'���؜�]�[�YȎ�[�����ώȼ'�-�؜�X��\�YȎ������ۘH�ܛX[��Κ[�������Ȉ�L�NH��[�����ώȈ�Y�
+
+
+����ML؎���\��[�������Έ�[�X\�YܘYY[�
+LY��L�NKٍNYL��Y�
+
+
+H�K��Έ�Q0���[X[\�	T����[��Y�њ^Y
+
+JȈ���[���[��њ^Y
+
+K�Κ[��Y�ȼ'䪈[�[��XH]^H�Y\�H��[��Y��Oȼ'��[�[��XH�Y\�H������0�X�[0���T����[���[�NȔՈ��[���[��L�Ȕ�Ȏ����K�Κ[��Y��OȈ�L�NH����ML؎���\��X]�Z[�[��YL
+K�Έ�[�X\�YܘYY[�
+LY��YL�
+
+K͍͌��K�L�NJH�B�N�]\��][\˛X\
+]O��]��\��H�[�X�����]��\��H�[�[����]��O�]���]��\��H�[�]�[��[OH���܎��]��Nٛ۝\�^�N�M\���]��O�]���]��\��H�[�\�X���[OH���܎��]��H���]��O�]���]��\��H�[�Y�]Y�H��]��\��H�[�Y�]Y�KY�[��[OH��Y��]��\�INؘX��ܛ�[���]��H���]���]����]��
+K���[�	��NB���[��[ۈ�[�\��YP�]ۜ�
+^Y�\�Y�\�]\�����ۜ��^O\�Y˙\�OOH���T�H��]\���]��[OH�\�^N�ܚY�ܚY][\]KX��[[�ΌY��Y����\��X\��[�X���N�L�����]ۈۘ�X��H��[�[�[
+	ЕVI�H��\��H���	؝^O�؝�YܙY[�Ή؝�Y���	�H��[OH��۝\�^�N�L��Y[�ΌL��؝^O��Ή��X�]N����H�������T�T�؝]ۏ���]ۈۘ�X��H��[�[�[
+	��S	�H��\��H���	�X�^O�؝�\�Y	Ή؝�Y���	�H��[OH��۝\�^�N�L��Y[�ΌL���X�^O��Ή��X�]N����H�����S�T�؝]ۏ���]��B���[��[ۈ�[�\���][ۜ�
+^Y�\��][ۜ�\��][ۜ˛[��
+\�]\�����]\���]��\��H��\���[OH�X\��[�X���N�L����]��[OH��۝\�^�N�L�ٛ۝]�ZY������܎�ٙ���X\��[�X���N�L��'�����X�[ۙ\�X�Y\�\�
+	���][ۜ˛[��JO�]���	���][ۜ˛X\
+O��ۜ�X�[�]�T
+
+N�ۜ��\�LȈ�L�NH����Y�
+
+
+��ۜ��X�[[��O�
+ؘ[[��JJ�L
+K�њ^Y
+�N��[�]\���]��\��H���Z][H���]��[OH�\�^N��^ڝ\�Y�KX�۝[���X�KX�]�Y[��[YۋZ][\Θ�[�\��X\��[�X���N�����]��[OH�\�^N��^�[YۋZ][\Θ�[�\���\�����[��[OH��۝]�ZY��L���܎���\�X�[ۏOOH��VH�Ȉ�L�NH����Y�
+
+
+�Nٛ۝\�^�N�MؘX��ܛ�[����\�X�[ۏOOH��VH�Ȉ��XLL����XL���N�Y[�Ό�؛ܙ\�\�Y]\΍�����\�X�[ۏOOH��VH�ȸ����VH������S�O��[����[��[OH���܎�ٙ��ٛ۝]�ZY���ٛ۝\�^�N�L������^�_H�[��[OH���܎��ML؎ٛ۝\�^�N�L\����\X�\��]�O��[����[����]����]ۈۘ�X��H����U�YJ	���X[YI�H��\��H�����Y�����[OH��۝\�^�N�L�Y[�΍L���܎��Y�
+
+
+؛ܙ\�X��܎��Y�
+
+
+����\��\�8�%O؝]ۏ���]���]��[OH�\�^N�ܚY�ܚY][\]KX��[[�ΌY��Y��Y����\�����]��[OH��X��ܛ�[���
+�LM؛ܙ\�\�Y]\΍��Y[�΍\���]��[OH��۝\�^�N�\���܎��
+�MM�H��[��YO�]���]��[OH��۝\�^�N�L\ٛ۝]�ZY������܎�ٙ��ٛ۝Y�[Z[N�[ۛ��X�H��ٛ]
+��[�]�[��[��X�_�]�[
+_O�]����]���]��[OH��X��ܛ�[���
+�LM؛ܙ\�\�Y]\΍��Y[�΍\���]��[OH��۝\�^�N�\���܎��
+�MM�H��X�X[�]���]��[OH��۝\�^�N�L\ٛ۝]�ZY������܎�͍͌��Nٛ۝Y�[Z[N�[ۛ��X�H��ٛ]
+ZY
+_O�]����]���]��[OH��X��ܛ�[����LȈ��XLL����XL���N؛ܙ\�\�Y]\΍��Y[�΍\؛ܙ\��\��Y	��L����]��[OH��۝\�^�N�\���܎��
+�MM�H��	��]���]��\��H�[]�H��[OH��۝\�^�N�L�ٛ۝]�ZY��L���܎���Nٛ۝Y�[Z[N�[ۛ��X�H����L���Ή��I	�\[وOOI۝[X�\����њ^Y
+�N���%	�I���
+	��L���Ή��I��IJX���O�]����]����]���	����]�[�[Z]]�[
+O��]��[OH�\�^N��^��\�L�X\��[�]��\ٛ۝\�^�N�L���܎�͍
+�����	����]�[��[��'�-����[OH���܎��Y�
+
+
+ٛ۝Y�[Z[N�[ۛ��X�H��ٛ]
+���]�[
+_O؏���[�����B�	��[Z]]�[��[��'�����[OH���܎��L�NNٛ۝Y�[Z[N�[ۛ��X�H��ٛ]
+�[Z]]�[
+_O؏���[�����B��]�����B��]��JK���[�	��_B�	���][ۜ˛[���	���[[��O��]��[OH�X\��[�]���Y[��]��؛ܙ\�]��\��Y�YL�
+
+N�\�^N��^ڝ\�Y�KX�۝[���X�KX�]�Y[�ٛ۝\�^�N�L\����[��[OH���܎�͍
+����	��[���[����[��[OH��۝]�ZY�����܎����][ۜ˜�YX�J
+K
+OO�J��[�]�T
+
+K
+O�L���L�NIΉ��Y�
+
+
+	�H���	�
+
+OO���ۜ�\��][ۜ˜�YX�J
+K
+OO�J��[�]�T
+
+K
+Nܙ]\���L���Ή��J��	���њ^Y
+�N�JJ
+_B���[����]�����B��]��B���[��[ۈ�[�\�[\��
+^Y�X[\��˛[��
+\�]\�����]\���]��\��H��\���[OH�X\��[�]��L����]��[OH��۝\�^�N�L�ٛ۝]�ZY������܎�ٙ���X\��[�X���N���'�%\�ܚX[H�p�X[\��]���]��[OH�X^ZZY����ݙ\����^N�]]ȏ��	�[\��˜�X�JMJK�X\
+OO��]��[OH��X��ܛ�[���K�\OOOH��^H�Ȉ��XLL����XL���N؛ܙ\�\�Y]\΍��Y[�΍��X\��[�X���N��ٛ۝\�^�N�L�\�^N��^��\��[YۋZ][\Θ�[�\�����[��[OH���܎��
+�MM�N��]K\�X�N���ܘ\ٛ۝Y�[Z[N�[ۛ��X�H���K�[Y_O��[����[��[OH���܎��L�N����K�\��O��[����]��
+K���[�	��_B��]����]��B���[��[ۈ�[�\�Ԕ�X�[ۊ
+^Y�	��[��˗�܏˛[��
+\�]\�����]\���]��\��H��\���[OH�X\��[�X���N�L����]��[OH��۝\�^�N�L�ٛ۝]�ZY������܎�ٙ���X\��[�X���N���'����ܝ\�H�\�\�[��X\��]���	��[��˗�܋��X�J
+�K�X\
+�O��]��[OH�\�^N��^ڝ\�Y�KX�۝[���X�KX�]�Y[��[YۋZ][\Θ�[�\��Y[�΍\؛ܙ\�X���N�\��Y�YL�
+
+L����]��[OH�\�^N��^�[YۋZ][\Θ�[�\���\������[��[OH��۝\�^�N�Lٛ۝]�ZY������܎����\OOOIԉ����Y�
+
+
+	Ή��L�NI�H�����\OOOIԉ���'�-�\�\�[��XIΉ�'����ܝI�O��[����[��[OH��۝\�^�N�\���܎��
+�MM�H���������[��O��[����]����[��[OH��۝\�^�N�L�ٛ۝]�ZY�����܎�ٙ��ٛ۝Y�[Z[N�[ۛ��X�H��ٛ]
+���X�J_O��[����]��
+K���[�	��_B��]��B��ʈOOOOHVS�U�RST�
+�[Yۘ�JHOOOOH
+��[��[ۈ�Z[XZ[�^[�]
+
+^�ۜ����Y��[Y[���][[Y[��RY
+	�\	�NY�\���
+\�]\���ۜ�\�[ؚ[O]�Y]�OOI�ۙI�^[�]�Y]�[�O]�Y]��Y�\�[ؚ[J^����[��\�SX�]�YH��\�X�[ۈ���]���]��[OH�\�^N��^��\��ݙ\����^�]]��Y[��X���N��X\��[�X���N��YH�[؋X\��]�\��ȏ��]���]��[OH�\�^N�ܚY�ܚY][\]KX��[[�Μ�\X]
+]]�Y�[Z[�X^
+
+�Y��JN��\��X\��[�X���N�L�YH�[؋X\��]�YܚY���]���]��\��H��\���[OH�X\��[�X���N�L�Y[�Ύ���]�YH��\�X�۝Z[�\���[OH�ZY����؛ܙ\�\�Y]\Ύ�ݙ\���ΚY[����]����]���]�YH��Y�\�X�[ۈ���]���]�YH��[�\�X�[ۈ���]���]�YH�[�\�X�[ۈ��\��H�[�YܚY��[OH�X\��[�X���N�L����]���]�YH��YKX���\�X�[ۈ���]���]�YH���\�X�[ۈ���]���]�YH�[\��\�X�[ۈ���]��Y[�^����[��\�SX�]�YH��\�X�[ۈ���]���]��[OH�\�^N�ܚY�ܚY][\]KX��[[�ΌY�����\�M�[YۋZ][\Μ�\����]���]��\��H��\���[OH�X\��[�X���N�L��Y[�ΌL���]�YH��\�X�۝Z[�\���[OH�ZY���؛ܙ\�\�Y]\Ύ�ݙ\���ΚY[����]���]�YH��\�Z[���X�\���[OH�\�^N��^ڝ\�Y�KX�۝[���X�KX�]�Y[��[YۋZ][\Θ�[�\��X\��[�]��ٛ۝\�^�N�L���܎��
+�MM�H����[��'�{�#��ܛ�\�H���H0��\��\��\�\�H[ݙ\���[����]����]���]�YH�[�\�X�[ۈ��\��H�[�YܚY��[OH�X\��[�X���N�L����]���]�YH���\�X�[ۈ���]���]�YH�[\��\�X�[ۈ���]����]���]���]�YH��Y�\�X�[ۈ���]���]�YH��[�\�X�[ۈ���]���]�YH��YKX���\�X�[ۈ���]���]�YH�܋\�X�[ۈ���]����]����]��B��^[�]�XYO]�YN�Z[�\�
+
+NB���[��[ۈ\]Q[�[ZX��X�[ۜ�
+^�ۜ�\�[ؚ[O]�Y]�OOI�ۙI����XY\���ۜ��Y��[Y[���][[Y[��RY
+	��\�X�[ۉ�NY��Z��[��\�S\�[�\�XY\�
+N���[ؚ[H\��]��\Y�\�[ؚ[J^�ۜ�\�Y��[Y[���][[Y[��RY
+	�[؋X\��]�\����NY�\�X\��[��\�SSؚ�X���^\�T��U�K��X�JJK�X\
+�O��]ۈۘ�X��H��]I��˜�\X�J�����	Ȋ_I�ܙ[�\�\��]\�
+
+H��[OH�Y[�΍\L؛ܙ\�\�Y]\΍�؛ܙ\��\��Y	��]OOX���͍͌��IΉ��YL�
+
+I�NؘX��ܛ�[����]OOX����XLY��IΉ��ML�I�N���܎�ٙ��ٛ۝\�^�N�L��\��܎��[�\���]K\�X�N���ܘ\����O؝]ۏ�
+K���[�	��N�ۜ�Y�Y��[Y[���][[Y[��RY
+	�[؋X\��]�YܚY	�NY�Y�XY˚[��\�SJT��U���]_�JK��X�J
+K�X\
+OO���]ۈۘ�X��H��[X�\��]
+	��K�\X�I�H��[OH��ܙ\��\��Y	�K�\X�OOX\��]�\X���͍͌��IΉ��YL�
+
+I�N؛ܙ\�\�Y]\ΎؘX��ܛ�[���K�\X�OOX\��]�\X����XLY��IΉ��ML�I�N���܎�ٙ���Y[�΍��^X[Yێ��[�\���\��܎��[�\�ٛ۝\�^�N�\���]��[OH��۝\�^�N�N���K��Y�O�]��]��[OH�X\��[�]������K�O�]���؝]ۏ�
+K���[�	��NB�����\�[����\���ۜ��X�Y��[Y[���][[Y[��RY
+	��\�Z[���X�\��NY��X�X�X��[��\�SX�[��'�{�#��ܛ�\�H���H0��\��\��\�\�H[ݙ\���[����[��˗�܏˛[����[��'��	��[��˗�܋�[��H�]�[\�ɔ�Y[�Y�X�Y����[�����X����Yۘ[��ۜ��Y�[Y��[Y[���][[Y[��RY
+	��Y�\�X�[ۉ�NY��Y�[
+\�Y�[�[��\�S\�[�\��Y��\�
+
+N����[���ۜ��[Y��[Y[���][[Y[��RY
+	��[�\�X�[ۉ�NY��[
+]�[�[��\�S\�[�\��[��\�
+N���[�X�]ܜ�ۜ�[�[Y��[Y[���][[Y[��RY
+	�[�\�X�[ۉ�NY�[�[
+Z[�[�[��\�S\�[�\�[�X�]ܜ�
+N����YH�]ۜ�ۜ��[Y��[Y[���][[Y[��RY
+	��YKX���\�X�[ۉ�NY��[
+]�[�[��\�S\�Y�ܙ[�\��YP�]ۜ�
+N��������][ۜ�ۜ���[Y��[Y[���][[Y[��RY
+	���\�X�[ۉ�NY���[
+\��[�[��\�S\�[�\���][ۜ�
+N���[\��ۜ�[[Y��[Y[���][[Y[��RY
+	�[\��\�X�[ۉ�NY�[[
+X[[�[��\�S\�[�\�[\��
+N���Ԉ�X�[ۈ
+�ۛJB��ۜ�ܑ[Y��[Y[���][[Y[��RY
+	�܋\�X�[ۉ�NY�ܑ[
+\ܑ[�[��\�S\�[�\�Ԕ�X�[ۊ
+NB��ʈOOOOHPRS��S�T�OOOOH
+��[��[ۈ�[�\�
+^�ۜ����Y��[Y[���][[Y[��RY
+�\�NY�\���
+\�]\�������[��ܙY[��Y�\�\��^^[�]�XYOY�[�N\���P�\�
+
+N����[��\�SX�]��[OH�Z[�ZZY��L��\�^N��^�[YۋZ][\Θ�[�\�ڝ\�Y�KX�۝[���[�\��Y[�ΌM����]��\��H��\���[OH�X^]�Y���Y�L	N�Y[�Ό����]��[OH�^X[Yێ��[�\��X\��[�X���N�����]��[OH��۝\�^�N��X\��[�X���N�L��'���]�����[OH���܎�ٙ��ٛ۝\�^�N��ٛ۝]�ZY��L���Y[��RH�YX�܏�����[OH���܎�͍͌��Nٛ۝\�^�N�L�ٛ۝]�ZY����X\��[�]�������H0����\�Y�H�\][���O����]���]�YH�Y\����\��H�\����[OH�\�^N��ۙN�X\��[�X���N�M���]���[�]YH�Z�^H�X�Z�\�H�'�$HTH�^H��\��H�[�[Z[���[OH�X\��[�X���N�L�ς�[�]YH�Y[XZ[�X�Z�\�H�'���[XZ[��\��H�[�[Z[���[OH�X\��[�X���N�L�ς�[�]YH�\\�Ȉ\OH�\���ܙ�X�Z�\�H�'�$�\���ܙ��\��H�[�[Z[���[OH�X\��[�X���N�M�ς�X�[�[OH�\�^N��^�[YۋZ][\Θ�[�\���\��X\��[�X���N�N���܎��ML؎ٛ۝\�^�N�L���\��܎��[�\����[�]YH�Y[[Ȉ\OH��X�؛���X��Y�[OH��Y�M��ZY��M��X��[�X��܎�͍͌��H�ψ�Y[�HSS�X�[��]��[OH�\�^N��^ڝ\�Y�KX�۝[���X�KX�]�Y[��[YۋZ][\Θ�[�\��X\��[�X���N�M���]�YH�ܝ�X�Y�H���ܝ��Y�J
+_O�]���]��[OH��۝\�^�N�L���܎��
+�MM�H���[�\���YHY\��]����]����]ۈYH�X���ۘ�X��H����[�
+H��\��H�����YܙY[���[OH��Y�L	Nٛ۝\�^�N�M\�Y[�ΌM��'�#�ۙX�\�H�\][���O؝]ۏ���[OH��۝\�^�N�L���܎��
+�MM�N�^X[Yێ��[�\��X\��[�]��L���H�[Y\�H�ۙ^p�ۈ[0�XHYYH\�\�\�H
+��Y�[�������]����]���]\��B�����Z[XZ[�^[�]Y��YYY
+ۛHۘ�H܈�[��Y]��[��\�B�Y�[^[�]�XY_^[�]�Y]�[�HOO]�Y]�Y��[Y[���][[Y[��RY
+	��\�X�۝Z[�\��J^�Z[XZ[�^[�]
+
+NB����\]H[�[ZX��۝[�
+�]�\��X�\��\�X�۝Z[�\�B�\]Q[�[ZX��X�[ۜ�
+N����Z[�\]H�\��Y�[��\�[��[�J^�Z[�\�
+
+N�][Y[�]
+
+
+OO�\]P�\�
+
+K
+NH[�HY��[�\�^\]P�\�
+
+NB���[�\�[�[
+
+NB��ʈOOOOH���OOOOH
+��[�\��YX�\�
+N�[�\�
+N�[�[^�J�YJN��ܚ\��؛�O���[�

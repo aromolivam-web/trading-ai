@@ -916,7 +916,7 @@ async function openTrade(size,useSLTP){
   };
   if(useSLTP&&sltp){
     body.stopLevel=parseFloat(sltp.sl.toFixed(asset.dig>3?asset.dig:2));
-    body.profitLevel=parseFloat(sltp.tp.toFixed(asset.dig>3?asset.dig:2));
+    body.limitLevel=parseFloat(sltp.tp.toFixed(asset.dig>3?asset.dig:2));
   }
   try{
     const {ok,d}=await apiFetch(PROXY+"/positions",{
@@ -1248,7 +1248,7 @@ function renderAlerts(){
 }
 
 function renderSRSection(){
-  if(!tindow._sr?.length)return'';
+  if(!window._sr?.length)return'';
   return`
   <div class="card" style="margin-bottom:12px">
     <div style="font-size:12px;font-weight:700;color:#fff;margin-bottom:8px">📌 Soportes y Resistencias</div>

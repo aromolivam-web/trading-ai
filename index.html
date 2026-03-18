@@ -104,7 +104,7 @@ body{background:#060a14;color:#e2e8f0;font-family:Inter,system-ui,sans-serif;min
       <div style="font-size:22px">📈</div>
       <div><h1>Trading AI</h1><span>Predictor v6.1 · Capital.com</span></div>
     </div>
-  2 <div style="padding:8px">
+    <div style="padding:8px">
       <input class="search-inp" id="asset-search" placeholder="🔍 Buscar activo..." oninput="filterAssets(this.value)"/>
     </div>
     <div id="cat-list" style="padding:4px 8px"></div>
@@ -612,7 +612,7 @@ function genC(base,n=100){
     const o=p,c=Math.max(o+(Math.random()-.48)*v,.00001);p=c;
     return{o,h:Math.max(o,c)+Math.random()*v*3,l:Math.min(o,c)-Math.random()*v*3,c};
   });
-  a.push({o:p,h:Math.max(p,base),n:Math.min(p,base),c:base});
+  a.push({o:p,h:Math.max(p,base),l:Math.min(p,base),c:base});
   return a;
 }
 function addTimes(cands){
@@ -706,7 +706,7 @@ function updateChart(){
         time:data[data.length-2].time,
         position:sig.dir==="COMPRA"?'belowBar':'aboveBar',
         color:'#f59e0b',shape:'circle',
-        text:'⚡ '+sig.conf+'%',s:size:1
+        text:'⚡ '+sig.conf+'%',size:1
       });
     }
 
@@ -716,7 +716,7 @@ function updateChart(){
       position:sig.dir==="COMPRA"?'belowBar':'aboveBar',
       color:sig.dir==="COMPRA"?'#10b981':'#ef4444',
       shape:sig.dir==="COMPRA"?'arrowUp':'arrowDown',
-      text:(sig.dir==="COMPRA"?'◲ BUY':''▼ SELL')+' '+sig.conf+'%',
+      text:(sig.dir==="COMPRA"?'▲ BUY':'▼ SELL')+' '+sig.conf+'%',
       size:sig.strength==='FUERTE'?3:2
     });
     try{lwCandle.setMarkers(markers);}catch{}

@@ -454,7 +454,7 @@ function calcTrend(c, ind) {
   if(ind.ema9 > ind.ema21 && ind.ema21 > ind.ema50)
     return {trend:"ALCISTA", color:"#10b981", bg:"#021a10", icon:"📈", str:"Tendencia ALCISTA", sub:"EMAs alineadas hacia arriba"};
   if(ind.ema9 < ind.ema21 && ind.ema21 < ind.ema50)
-    return {trend:"BAJISTA", color:"#ef4444", bg:"#1a0202", icon":📉", str:"Tendencia BAJISTA", sub:"EMAs alineadas hacia abajo"};
+    return {trend:"BAJISTA", color:"#ef4444", bg:"#1a0202", icon:"📉", str:"Tendencia BAJISTA", sub:"EMAs alineadas hacia abajo"};
   return {trend:"LATERAL", color:"#f59e0b", bg:"#1a0f02", icon:"↔️", str:"Mercado LATERAL", sub:"Sin tendencia definida"};
 }
 

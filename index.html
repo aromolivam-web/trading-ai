@@ -380,22 +380,36 @@ async function doLogin(){
   const dm=document.getElementById("l-demo").checked;
   const err=document.getElementById("l-err");const btn=document.getElementById("l-btn");
   if(!ak||!em||!pw){err.textContent="Completa todos los campos.";err.style.display="block";return;}
-  err.style.display="none";btn.disabled=true;btn.textContent="ð Conectando...";
-
-  // Progressive messages while waiting (server may take up to 60s to wake)
-  const _t1=setTimeout(()=>{if(btn.disabled)btn.textContent="â³ Despertando servidor (~30s)...";},4000);
-  const _t2=setTimeout(()=>{if(btn.disabled)btn.textContent="ð Casi listo, espera un momento...";},15000);
-  const _t3=setTimeout(()=>{if(btn.disabled)btn.textContent="ð El servidor tarda en responder, aguanta...";},30000);
+  err.style.display="none";btn.disabled=true;btn.textContent="🔌 Conectando...";
+  const _t1=setTimeout(()=>{if(btn&&btn.disabled)btn.textContent="⏳ Despertando servidor (~30s)...";},4000);
+  const _t2=setTimeout(()=>{if(btn&&btn.disabled)btn.textContent="🕐 Casi listo, espera un momento...";},15000);
+  const _t3=setTimeout(()=>{if(btn&&btn.disabled)btn.textContent="🕐 El servidor tarda en responder, aguanta...";},30000);
   const clearTimers=()=>{clearTimeout(_t1);clearTimeout(_t2);clearTimeout(_t3);};
+  let d=null;
   try{
-    const r=await fetch(PROXY+"/session",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({apiKey:ak,email:em,password:pw,demo:dm})});
-    const d=await r.json();
-    if(!r.ok)throw new Error(d.error||"HTTP "+r.status);
-    sess={cst:d.cst,token:d.token,base:d.base,apiKey:ak,email:em,pass:pw,demo:dm};
-    toast("â Conectado a Capital.com "+(dm?"DEMO":"LIVE"),"success");
-    await fetchAccount();await fetchPositions();
-    startTimers();render();
-  }catch(e){err.textContent="â "+e.message;err.style.display="block";btn.disabled=false;btn.textContent="ð Conectar a Capital.com";}
+    const ctrl=new AbortController();
+    const tOut=setTimeout(()=>ctrl.abort(),70000);
+    const r=await fetch(PROXY+"/session",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({apiKey:ak,email:em,password:pw,demo:dm}),signal:ctrl.signal});
+    clearTimeout(tOut);
+    d=await r.json();
+    clearTimers();
+    console.log("[doLogin] HTTP",r.status, JSON.stringify(d));
+    if(!r.ok) throw new Error(d.error||d.message||d.errorCode||"Error HTTP "+r.status);
+    if(!d.cst||!d.token) throw new Error("Proxy sin sesion valida: "+JSON.stringify(d).slice(0,200));
+    serverStatus='warm';
+    sess={cst:d.cst,token:d.token,base:d.base||'',apiKey:ak,email:em,pass:pw,demo:dm};
+  }catch(e){
+    clearTimers();
+    const msg=e.name==='AbortError'?'Tiempo agotado (70s). Intenta de nuevo.':e.message;
+    err.textContent="❌ "+msg;err.style.display="block";
+    btn.disabled=false;btn.textContent="🔌 Conectar a Capital.com";
+    return;
+  }
+  toast("✅ Conectado a Capital.com "+(dm?"DEMO":"LIVE"),"success");
+  await fetchAccount();await fetchPositions();
+  startTimers();
+  render();
+  doAnalyze();
 }
 
 async function fetchAccount(){
@@ -475,7 +489,7 @@ async function closeTrade(deaId){
 function startTimers(){
   clearInterval(liveTimer);clearInterval(countTimer);
   liveTimer=setInterval(()=>{if(candles){doAnalyze(true);}},30000);
-  countTimer=setInterval(()=>{countdown=countdown<=1?30:countdown-1;const el=document.getElementById("cd-bar");if(el)el.style.width=(countdown/30)*100+"%";});
+  countTimer=setInterval(()=>{countdown=countdown<=1?30:countdown-1;const el=document.getElementById("cd-bar");if(el)el.style.width=(countdown/30)*100+"%";},1000);
 }
 
 function indCards(){

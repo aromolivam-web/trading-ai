@@ -363,7 +363,7 @@ function detectPatterns(c){
 /* ===== TA CALCULATIONS ===== */
 function calcInd(c){
   const cls=c.map(x=>x.c),n=cls.length;
-  const avg=a=>a.reduce((x.y)=>x+y,0)/a.length;
+  const avg=a=>a.reduce((x,y)=>x+y,0)/a.length;
 
   // EMA (proper seeded)
   const ema=(d,p)=>{

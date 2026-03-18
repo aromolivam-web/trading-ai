@@ -48,73 +48,73 @@ canvas{width:100%;display:block;background:#080a1b;border-radius:8px}
 <div id="toast-wrap"></div>
 <div id="modal-root"></div>
 <div id="view-toggle-wrap" class="view-toggle">
-<button class="view-btn" id="btn-pc" onclick="setView('pc')">ð» PC</button>
-<button class="view-btn" id="btn-phone" onclick="setView('phone')">ð± Phone</button>
+<button class="view-btn" id="btn-pc" onclick="setView('pc')">💻 PC</button>
+<button class="view-btn" id="btn-phone" onclick="setView('phone')">📱 Phone</button>
 </div>
 <div id="app"></div>
 
 <script>
 const PROXY="https://trading-ai-proxy.onrender.com";
 const ASSETS={
-"ð Favoritos":[],
-"ð± Forex":[
-{epic:"EURUSD",d:"EUR/USD",name:"Euro/DÃ³lar",dig:5,pip:0.0001,flag:"ðªðº"},
-{epic:"GBPUSD",d:"GBP/USD",name:"Libra/DÃ³lar",dig:5,pip:0.0001,flag:"ð¬ð§"},
-{epic:"USDJPY",d:"USD/JPY",name:"DÃ³lar/Yen",dig:3,pip:0.01,flag:"ð¯ðµ"},
-{epic:"USDCAD",d:"USD/CAD",name:"DÃ³lar/CAD",dig:5,pip:0.0001,flag:"ð¨ð¦"},
-{epic:"AUDUSD",d:"AUD/USD",name:"Aussie/DÃ³lar",dig:5,pip:0.0001,flag:"ð¦ðº"},
-{epic:"EURGBP",d:"EUR/GBP",name:"Euro/Libra",dig:5,pip:0.0001,flag:"ðªðº"},
-{epic:"USDCHF",d:"USD/CHF",name:"DÃ³lar/Franco",dig:5,pip:0.0001,flag:"ð±"},
-{epic:"NZDUSD",d:"NZD/USD",name:"Kiwi/DÃ³lar",dig:5,pip:0.0001,flag:"ð³ð¿"},
-{epic:"EURJPY",d:"EUR/JPY",name:"Euro/Yen",dig:3,pip:0.01,flag:"ðªðº"},
-{epic:"GBPJPY",d:"GBP/JPY",name:"Libra/Yen",dig:3,pip:0.01,flag:"ð¬ð§"}
+"🌍 Favoritos":[],
+"💱 Forex":[
+{epic:"EURUSD",d:"EUR/USD",name:"Euro/Dólar",dig:5,pip:0.0001,flag:"🇪🇺"},
+{epic:"GBPUSD",d:"GBP/USD",name:"Libra/Dólar",dig:5,pip:0.0001,flag:"🇬🇧"},
+{epic:"USDJPY",d:"USD/JPY",name:"Dólar/Yen",dig:3,pip:0.01,flag:"🇯🇵"},
+{epic:"USDCAD",d:"USD/CAD",name:"Dólar/CAD",dig:5,pip:0.0001,flag:"🇨🇦"},
+{epic:"AUDUSD",d:"AUD/USD",name:"Aussie/Dólar",dig:5,pip:0.0001,flag:"🇦🇺"},
+{epic:"EURGBP",d:"EUR/GBP",name:"Euro/Libra",dig:5,pip:0.0001,flag:"🇪🇺"},
+{epic:"USDCHF",d:"USD/CHF",name:"Dólar/Franco",dig:5,pip:0.0001,flag:"💱"},
+{epic:"NZDUSD",d:"NZD/USD",name:"Kiwi/Dólar",dig:5,pip:0.0001,flag:"🇳🇿"},
+{epic:"EURJPY",d:"EUR/JPY",name:"Euro/Yen",dig:3,pip:0.01,flag:"🇪🇺"},
+{epic:"GBPJPY",d:"GBP/JPY",name:"Libra/Yen",dig:3,pip:0.01,flag:"🇬🇧"}
 ],
-"ðª Cripto":[
-{epic:"BTCUSD",d:"BTC/USD",name:"Bitcoin",dig:2,pip:1,flag:"â¿"},
-{epic:"ETHUSD",d:"ETH/USD",name:"Ethereum",dig:2,pip:0.1,flag:"Î"},
-{epic:"SOLUSD",d:"SOL/USD",name:"Solana",dig:3,pip:0.01,flag:"â"},
-{epic:"XRPUSD",d:"XRP/USD",name:"Ripple",dig:4,pip:0.0001,flag:"â"},
-{epic:"BNBUSD",d:"BNB/USD",name:"BNB",dig:3,pip:0.01,flag:"ð¶"},
-{epic:"ADAUSD",d:"ADA/USD",name:"Cardano",dig:5,pip:0.00001,flag:"ð·"},
-{epic:"AVAXUSD",d:"AVAX/USD",name:"Avalanche",dig:3,pip:0.01,flag:"ðº"},
-{epic:"LINKUSD",d:"LINK/USD",name:"Chainlink",dig:4,pip:0.0001,flag:"ð"}
+"🪙 Cripto":[
+{epic:"BTCUSD",d:"BTC/USD",name:"Bitcoin",dig:2,pip:1,flag:"₿"},
+{epic:"ETHUSD",d:"ETH/USD",name:"Ethereum",dig:2,pip:0.1,flag:"Ν"},
+{epic:"SOLUSD",d:"SOL/USD",name:"Solana",dig:3,pip:0.01,flag:"◎"},
+{epic:"XRPUSD",d:"XRP/USD",name:"Ripple",dig:4,pip:0.0001,flag:"✕"},
+{epic:"BNBUSD",d:"BNB/USD",name:"BNB",dig:3,pip:0.01,flag:"🔶"},
+{epic:"ADAUSD",d:"ADA/USD",name:"Cardano",dig:5,pip:0.00001,flag:"🔷"},
+{epic:"AVAXUSD",d:"AVAX/USD",name:"Avalanche",dig:3,pip:0.01,flag:"🔺"},
+{epic:"LINKUSD",d:"LINK/USD",name:"Chainlink",dig:4,pip:0.0001,flag:"🔗"}
 ],
-"ð¥ Metales":[
-{epic:"GOLD",d:"XAU/USD",name:"Oro",dig:2,pip:0.1,flag:"ð¥"},
-{epic:"SILVER",d:"XAG/USD",name:"Plata",dig:3,pip:0.01,flag:"ð¥"},
-{epic:"PLATINUM",d:"XPT/USD",name:"Platino",dig:2,pip:0.1,flag:"âª"}
+"🥇 Metales":[
+{epic:"GOLD",d:"XAU/USD",name:"Oro",dig:2,pip:0.1,flag:"🥇"},
+{epic:"SILVER",d:"XAG/USD",name:"Plata",dig:3,pip:0.01,flag:"🥈"},
+{epic:"PLATINUM",d:"XPT/USD",name:"Platino",dig:2,pip:0.1,flag:"⚪"}
 ],
-"ð Ãndices":[
-{epic:"US500",d:"US500",name:"S&P 500",dig:1,pip:0.1,flag:"ðºð¸"},
-{epic:"US100",d:"US100",name:"NASDAQ",dig:1,pip:0.1,flag:"ð±"},
-{epic:"US30",d:"US30",name:"Dow Jones",dig:1,pip:1,flag:"ðºð¸"},
-{epic:"DE40",d:"GER40",name:"DAX 40",dig:1,pip:0.1,flag:"ð©ðª"},
-{epic:"UK100",d:"UK100",name:"FTSE 100",dig:1,pip:0.1,flag:"ð¬ð§"},
-{epic:"JP225",d:"JP225",name:"Nikkei",dig:1,pip:1,flag:"ð¯ðµ"}
+"📈 Índices":[
+{epic:"US500",d:"US500",name:"S&P 500",dig:1,pip:0.1,flag:"🇺🇸"},
+{epic:"US100",d:"US100",name:"NASDAQ",dig:1,pip:0.1,flag:"📱"},
+{epic:"US30",d:"US30",name:"Dow Jones",dig:1,pip:1,flag:"🇺🇸"},
+{epic:"DE40",d:"GER40",name:"DAX 40",dig:1,pip:0.1,flag:"🇩🇪"},
+{epic:"UK100",d:"UK100",name:"FTSE 100",dig:1,pip:0.1,flag:"🇬🇧"},
+{epic:"JP225",d:"JP225",name:"Nikkei",dig:1,pip:1,flag:"🇯🇵"}
 ],
-"â½ Materias":[
-{epic:"OIL_CRUDE",d:"WTI",name:"PetrÃ³leo WTI",dig:2,pip:0.01,flag:"ð¢ï¸"},
-{epic:"OIL_BRENT",d:"BRENT",name:"PetrÃ³leo Brent",dig:2,pip:0.01,flag:"ð¢ï¸"},
-{epic:"NATURAL_GAS",d:"GAS",name:"Gas Natural",dig:4,pip:0.001,flag:"ð¥"}
+"⛽ Materias":[
+{epic:"OIL_CRUDE",d:"WTI",name:"Petróleo WTI",dig:2,pip:0.01,flag:"🛢️"},
+{epic:"OIL_BRENT",d:"BRENT",name:"Petróleo Brent",dig:2,pip:0.01,flag:"🛢️"},
+{epic:"NATURAL_GAS",d:"GAS",name:"Gas Natural",dig:4,pip:0.001,flag:"🔥"}
 ],
-"ð¢ Acciones":[
-{epic:"AAPL",d:"AAPL",name:"Apple",dig:2,pip:0.01,flag:"ð"},
-{epic:"MSFT",d:"MSFT",name:"Microsoft",dig:2,pip:0.01,flag:"ð»"},
-{epic:"GOOGL",d:"GOOGL",name:"Alphabet",dig:2,pip:0.01,flag:"ð"},
-{epic:"AMZN",d:"AMZN",name:"Amazon",dig:2,pip:0.01,flag:"ð¦"},
-{epic:"TSLA",d:"TSLA",name:"Tesla",dig:2,pip:0.01,flag:"ð"},
-{epic:"NVDA",d:"NVDA",name:"NVIDIA",dig:2,pip:0.01,flag:"ð®"},
-{epic:"META",d:"META",name:"Meta",dig:2,pip:0.01,flag:"ðï¸"},
-{epic:"NFLX",d:"NFLX",name:"Netflix",dig:2,pip:0.01,flag:"ðº"},
-{epic:"JPM",d:"JPM",name:"JP Morgan",dig:2,pip:0.01,flag:"ð¦"},
-{epic:"AMD",d:"AMD",name:"AMD",dig:2,pip:0.01,flag:"ð´"}
+"🏢 Acciones":[
+{epic:"AAPL",d:"AAPL",name:"Apple",dig:2,pip:0.01,flag:"🍎"},
+{epic:"MSFT",d:"MSFT",name:"Microsoft",dig:2,pip:0.01,flag:"💻"},
+{epic:"GOOGL",d:"GOOGL",name:"Alphabet",dig:2,pip:0.01,flag:"🔍"},
+{epic:"AMZN",d:"AMZN",name:"Amazon",dig:2,pip:0.01,flag:"📦"},
+{epic:"TSLA",d:"TSLA",name:"Tesla",dig:2,pip:0.01,flag:"🚗"},
+{epic:"NVDA",d:"NVDA",name:"NVIDIA",dig:2,pip:0.01,flag:"🎮"},
+{epic:"META",d:"META",name:"Meta",dig:2,pip:0.01,flag:"👁️"},
+{epic:"NFLX",d:"NFLX",name:"Netflix",dig:2,pip:0.01,flag:"📺"},
+{epic:"JPM",d:"JPM",name:"JP Morgan",dig:2,pip:0.01,flag:"🏦"},
+{epic:"AMD",d:"AMD",name:"AMD",dig:2,pip:0.01,flag:"🔴"}
 ]
 };
 
 const TFS=[{i:"M1",v:"MINUTE"},{i:"M5",v:"MINUTE_5"},{i:"M15",v:"MINUTE_15"},{i:"M30",v:"MINUTE_30"},{i:"H1",v:"HOUR"},{i:"H4",v:"HOUR_4"},{i:"D1",v:"DAY"}];
 const ALL=Object.values(ASSETS).flat().filter((a,i,ar)=>ar.findIndex(b=>b.epic===a.epic)===i);
 
-let view="pc",sess=null,cat="ð± Forex",asset=ASSETS["ð± Forex"][0],tfIdx=4;
+let view="pc",sess=null,cat="💱 Forex",asset=ASSETS["💱 Forex"][0],tfIdx=4;
 let candles=null,ind=null,sig=null,sltp=null,bid=null,ask=null,mid=null,trendInfo=null;
 let favorites=[],alertsOn=false,alertLog=[],positions=[],balance=null,currency="USD";
 let capital=1000,risk=2,leverage=30,countdown=30,tab="chart",chartH=300;
@@ -151,7 +151,7 @@ function setView(v){
   render();
 }
 
-function fmt(v){return v!==null?v.toFixed(asset.dig>3?asset.dig:2):"â";}
+function fmt(v){return v!==null?v.toFixed(asset.dig>3?asset.dig:2):"—";}
 
 function now(){const d=new Date();return d.getHours().toString().padStart(2,"0")+":"+d.getMinutes().toString().padStart(2,"0")+":"+d.getSeconds().toString().padStart(2,"0");}
 
@@ -173,7 +173,7 @@ function toast(msg,type="info"){
 
 function addAlert(type,msg){alertLog.unshift({type,msg,time:now()});if(alertLog.length>80)alertLog.pop();}
 
-// â TA â
+// — TA —
 function calcInd(c){
   const cls=c.map(x=>x.c),n=cls.length;
   const ema=(d,p)=>{const k=2/(p+1);let e=d[0];for(let i=1;i<d.length;i++)e=d[i]*k+e*(1-k);return e;};
@@ -205,8 +205,8 @@ function calcSig(c,i,sr=[]){
   const tol=range*0.005;
   const nearSupport=sr.find(s=>s.type==='S'&&Math.abs(lastPrice-s.price)<=tol*2);
   const nearResistance=sr.find(s=>s.type==='R'&&Math.abs(lastPrice-s.price)<=tol*2);
-  if(nearSupport){s+=nearSupport.strength;r.push("ð¢ Soporte clave: "+fmt(nearSupport.price));}
-  if(nearResistance){s-=nearResistance.strength;r.push("ð´ Resistencia clave: "+fmt(nearResistance.price));}
+  if(nearSupport){s+=nearSupport.strength;r.push("🟢 Soporte clave: "+fmt(nearSupport.price));}
+  if(nearResistance){s-=nearResistance.strength;r.push("🔴 Resistencia clave: "+fmt(nearResistance.price));}
 
   return{dir:s>0?"COMPRA":"VENTA",conf:Math.min(96,45+Math.abs(s)*6).toFixed(0),reasons:r};
 }
@@ -215,9 +215,9 @@ function calcSLTP(price,dir,atr){const d=(atr||price*.005)*1.5;return{sl:dir==="
 
 function calcTrend(c,ind){
   const eu=ind.ema9,e21=ind.ema21,e50=ind.ema50;
-  if(eu>e21&&e21>e50)return{trend:"ALCISTA",color:"#10b981",icon:"ð",str:"Muy fuerte ð¢"};
-  if(eu<e21&&e21<e50)return{trend:"BAJISTA",color:"#ef4444",icon:"ð",str:"Muy fuerte ð´"};
-  return{trend:"LATERAL",color:"#f59e0b",icon:"âï¸",str:"Sin tendencia"};
+  if(eu>e21&&e21>e50)return{trend:"ALCISTA",color:"#10b981",icon:"📈",str:"Muy fuerte 🟢"};
+  if(eu<e21&&e21<e50)return{trend:"BAJISTA",color:"#ef4444",icon:"📉",str:"Muy fuerte 🔴"};
+  return{trend:"LATERAL",color:"#f59e0b",icon:"↔️",str:"Sin tendencia"};
 }
 
 function genC(base,n=80){
@@ -247,7 +247,7 @@ function calcSR(c){
   return merged.filter(m=>m.strength>=2).sort((a,b)=>b.strength-a.strength).slice(0,8);
 }
 
-// â DRAW CHART â
+// — DRAW CHART —
 function drawChart(cvId,h){
   const cv=document.getElementById(cvId);if(!cv||!candles||!ind)return;
   const W=cv.offsetWidth|600;cv.width=W;cv.height=h||300;
@@ -323,12 +323,12 @@ function drawChart(cvId,h){
       const ay = ty(lc2.l) + 8 + sz;
       ctx.fillStyle = "#10b981"; ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.moveTo(x2, ay-sz*1.5); ctx.lineTo(x2-sz*.9,ay); ctx.lineTo(x2+sz*.9,ay); ctx.closePath(); ctx.fill(); ctx.stroke();
-      ctx.fillStyle = "#10b981"; ctx.font = "bold 10px sans-serif"; ctx.textAlign = "center"; ctx.fillText("â² BUY", x2, ay+12);
+      ctx.fillStyle = "#10b981"; ctx.font = "bold 10px sans-serif"; ctx.textAlign = "center"; ctx.fillText("▲ BUY", x2, ay+12);
     } else {
       const ay = ty(lc2.h) - 8 - sz;
       ctx.fillStyle = "#ef4444"; ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.moveTo(x2, ay+sz*1.5); ctx.lineTo(x2-sz*.9,ay); ctx.lineTo(x2+sz*.9,ay); ctx.closePath(); ctx.fill(); ctx.stroke();
-      ctx.fillStyle = "#ef4444"; ctx.font = "bold 10px sans-serif"; ctx.textAlign = "center"; ctx.fillText("â¼ SELL", x2, ay-6);
+      ctx.fillStyle = "#ef4444"; ctx.font = "bold 10px sans-serif"; ctx.textAlign = "center"; ctx.fillText("▼ SELL", x2, ay-6);
     }
     ctx.shadowBlur = 0;
 
@@ -370,7 +370,7 @@ function attachChartEvents(cvId) {
   cv.style.cursor = 'crosshair';
 }
 
-// â FETCH â
+// — FETCH —
 function getH(){return{"x-cst":sess.cst,"x-token":sess.token,"x-base":sess.base};}
 
 async function doLogin(){
@@ -395,7 +395,7 @@ async function doLogin(){
     clearTimers();
     console.log("[doLogin] HTTP",r.status, JSON.stringify(d));
     if(!r.ok) throw new Error(d.error||d.message||d.errorCode||"Error HTTP "+r.status);
-    if(!d.cst||!d.token) throw new Error("Proxy sin sesion valida: "+JSON.stringify(d).slice(0,200));
+    if(!d.cst||!d.token) throw new Error("El proxy no devolvió sesión válida. Respuesta: "+JSON.stringify(d).slice(0,150));
     serverStatus='warm';
     sess={cst:d.cst,token:d.token,base:d.base||'',apiKey:ak,email:em,pass:pw,demo:dm};
   }catch(e){
@@ -405,11 +405,12 @@ async function doLogin(){
     btn.disabled=false;btn.textContent="🔌 Conectar a Capital.com";
     return;
   }
+  // Login OK — render outside try-catch para que errores de UI no bloqueen
   toast("✅ Conectado a Capital.com "+(dm?"DEMO":"LIVE"),"success");
   await fetchAccount();await fetchPositions();
   startTimers();
   render();
-  doAnalyze();
+  doAnalyze(); // Cargar datos automáticamente al entrar
 }
 
 async function fetchAccount(){
@@ -425,7 +426,7 @@ async function fetchPositions(){
 
 async function doAnalyze(silent=false){
   if(!sess)return;
-  if(!silent){const btn=document.getElementById("btn-analyze");if(btn){btn.disabled=true;btn.textContent="ð";}}
+  if(!silent){const btn=document.getElementById("btn-analyze");if(btn){btn.disabled=true;btn.textContent="🔁";}}
   const err=document.getElementById("err-bar");if(err)err.style.display='none';
   try{
     const mr=await fetch(PROXY+"/markets/"+asset.epic,{headers:getH()});
@@ -449,12 +450,12 @@ async function doAnalyze(silent=false){
     window._sr=sr;
     sltp=calcSLTP(mid,sig.dir,ind.atr);trendInfo=calcTrend(candles,ind);
     countdown=30;
-    if(prevSig&&prevSig!==sig.dir)addAlert(sig.dir==="COMPRA"?"buy":"sell","ð "+asset.d+" - "+sig.conf+"% "+(sig.dir==="COMPRA"?"ð¢ COMPRA":"ð´ VENTA")+" "+fmt(mid));
+    if(prevSig&&prevSig!==sig.dir)addAlert(sig.dir==="COMPRA"?"buy":"sell","📊 "+asset.d+" - "+sig.conf+"% "+(sig.dir==="COMPRA"?"🟢 COMPRA":"🔴 VENTA")+" "+fmt(mid));
     prevSig=sig.dir;
     await fetchAccount();await fetchPositions();
     render();
-  }catch(e){if(!silent&&document.getElementById("err-bar")){document.getElementById("err-bar").textContent="â "+e.message;document.getElementById("err-bar").style.display="block";}}
-  const btn=document.getElementById("btn-analyze");if(btn){btn.disabled=false;btn.textContent="ð Analizar";}
+  }catch(e){if(!silent&&document.getElementById("err-bar")){document.getElementById("err-bar").textContent="❌ "+e.message;document.getElementById("err-bar").style.display="block";}}
+  const btn=document.getElementById("btn-analyze");if(btn){btn.disabled=false;btn.textContent="🔍 Analizar";}
 }
 
 async function openTrade(size,useSLTP){
@@ -467,11 +468,11 @@ async function openTrade(size,useSLTP){
     const r=await fetch(PROXY+"/positions",{method:"POST",headers:{...getH(),"Content-Type":"application/json"},body:JSON.stringify(body)});
     const d=await r.json();
     if(!r.ok)throw new Error(d.errorCode||d.error||"HTTP "+r.status);
-    toast("â PosiciÃ³n abierta: "+direction+" "+size+" "+asset.d,"success");
+    toast("✅ Posición abierta: "+direction+" "+size+" "+asset.d,"success");
     tradeModalOpen=false;
     await fetchPositions();await fetchAccount();
     render();
-  }catch(e){toast("â Error: "+e.message,"error");}
+  }catch(e){toast("❌ Error: "+e.message,"error");}
   tradeLoading=false;
 }
 
@@ -480,10 +481,10 @@ async function closeTrade(deaId){
   try{
     const r=await fetch(PROXY+"/positions/"+deaId,{method:"DELETE",headers:getH()});
     if(!r.ok){const d=await r.json();throw new Error(d.errorCode||"Error al cerrar");}
-    toast("â PosiciÃ³n cerrada","success");
+    toast("✅ Posición cerrada","success");
     await fetchPositions();await fetchAccount();
     render();
-  }catch(e){toast("â Error: "+e.message,"error");}
+  }catch(e){toast("❌ Error: "+e.message,"error");}
 }
 
 function startTimers(){
@@ -495,10 +496,10 @@ function startTimers(){
 function indCards(){
   if(!ind)return[];
   return[
-    {k:"RSI",n:"RSI (14)",v:ind.rsi.toFixed(2),s:ind.rsi<30?"ð¢ SOBREVENDIDO":ind.rsi>70?"ð´ SOBRECOMPRADO":"Normal"},
-    {k:"MACD",n:"MACD (12,26,9)",v:ind.macd.toFixed(5),s:ind.macd>0?"Alcista ð¢":"Bajista ð´"},
+    {k:"RSI",n:"RSI (14)",v:ind.rsi.toFixed(2),s:ind.rsi<30?"🟢 SOBREVENDIDO":ind.rsi>70?"🔴 SOBRECOMPRADO":"Normal"},
+    {k:"MACD",n:"MACD (12,26,9)",v:ind.macd.toFixed(5),s:ind.macd>0?"Alcista 🟢":"Bajista 🔴"},
     {k:"EMA",n:"EMA9/21/50",v:ind.ema9.toFixed(asset.dig)+" / "+ind.ema21.toFixed(asset.dig)+" / "+ind.ema50.toFixed(asset.dig),s:ind.ema9>ind.ema21?"Arriba":"Abajo"},
-    {k:"ADX",n:"ADX (Fuerza)",v:ind.adx.toFixed(1),s:ind.adx>25?"Fuerte ð¢":"DÃ©bil ð¡"}
+    {k:"ADX",n:"ADX (Fuerza)",v:ind.adx.toFixed(1),s:ind.adx>25?"Fuerte 🟢":"Débil 🟡"}
   ];
 }
 
@@ -509,11 +510,11 @@ function renderModal(){
   root.innerHTML=`<div class="modal-bg" onclick="closeModal()">
     <div class="modal-box" onclick="event.stopPropagation()">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-        <div style="font-size:17px;font-weight:800;color:${buy?"#10b981":"#ef4444"}">${buy?"ð ABRIR COMPRA":"ð ABRIR VENTA"}</div>
-        <button onclick="closeModal()" style="background:#162035;border:1px solid #1e2d45;border-radius:8px;padding:5px 10px;color:#94a3b8;cursor:pointer">â</button>
+        <div style="font-size:17px;font-weight:800;color:${buy?"#10b981":"#ef4444"}">${buy?"📊 ABRIR COMPRA":"📊 ABRIR VENTA"}</div>
+        <button onclick="closeModal()" style="background:#162035;border:1px solid #1e2d45;border-radius:8px;padding:5px 10px;color:#94a3b8;cursor:pointer">✕</button>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px">
-        ${[["Precio",fmt(mid),"ð±"],[" Stop Loss",sltp?fmt(sltp.sl):"â","ð´"],["Take Profit",sltp?fmt(sltp.tp):"â","ð¢"]].map(x=>`<div style="background:#162035;border-radius:8px;padding:8px;text-align:center;border:1px solid #1e2d45">
+        ${[["Precio",fmt(mid),"💱"],[" Stop Loss",sltp?fmt(sltp.sl):"—","🔴"],["Take Profit",sltp?fmt(sltp.tp):"—","🟢"]].map(x=>`<div style="background:#162035;border-radius:8px;padding:8px;text-align:center;border:1px solid #1e2d45">
           <div style="font-size:9px;color:#64748b;margin-bottom:2px">${x[0]}</div>
           <div style="font-size:11px;font-weight:800;color:#fff;font-family:monospace">${x[1]}</div>
         </div>`).join("")}
@@ -521,29 +522,29 @@ function renderModal(){
 
       <!-- IMPROVEMENT 2: Mode toggle -->
       <div style="display:flex;gap:6px;margin-bottom:12px;">
-        <button onclick="tradeMode='lots';renderModal()" style="flex:1;padding:8px;border-radius:8px;border:1px solid #1e2d45;font-size:11px;font-weight:600;cursor:pointer;${tradeMode==='lots'?'background:linear-gradient(135deg,#6366f1,#3b82f6);color:#fff':'background:#162035;color:#64748b'}">ð¦ Lotes</button>
-        <button onclick="tradeMode='amount';renderModal()" style="flex:1;padding:8px;border-radius:8px;border:1px solid #1e2d45;font-size:11px;font-weight:600;cursor:pointer;${tradeMode==='amount'?'background:linear-gradient(135deg,#6366f1,#3b82f6);color:#fff':'background:#162035;color:#64748b'}">ðµ Monto ($)</button>
+        <button onclick="tradeMode='lots';renderModal()" style="flex:1;padding:8px;border-radius:8px;border:1px solid #1e2d45;font-size:11px;font-weight:600;cursor:pointer;${tradeMode==='lots'?'background:linear-gradient(135deg,#6366f1,#3b82f6);color:#fff':'background:#162035;color:#64748b'}">📦 Lotes</button>
+        <button onclick="tradeMode='amount';renderModal()" style="flex:1;padding:8px;border-radius:8px;border:1px solid #1e2d45;font-size:11px;font-weight:600;cursor:pointer;${tradeMode==='amount'?'background:linear-gradient(135deg,#6366f1,#3b82f6);color:#fff':'background:#162035;color:#64748b'}">💵 Monto ($)</button>
       </div>
 
       ${tradeMode==='lots'?`
-      <label style="font-size:11px;color:#64748b;display:block;margin-bottom:5px">ð TamaÃ±o (lotes)</label>
+      <label style="font-size:11px;color:#64748b;display:block;margin-bottom:5px">📊 Tamaño (lotes)</label>
       <div style="display:flex;gap:6px">
         <input id="trade-size" type="number" value="0.1" min="0.01" step="0.01" class="modal-input" style="flex:1"/>
         <div style="display:flex;flex-direction:column;gap:4px">
           ${["0.01","0.1","0.5","1.0"].map(s=>`<button onclick="document.getElementById('trade-size').value='${s}'" style="padding:4px 6px;background:#162035;border:1px solid #1e2d45;border-radius:5px;color:#fff;font-size:10px;cursor:pointer">${s}</button>`).join('')}
         </div>
       </div>`:
-      `<label style="font-size:11px;color:#64748b;display:block;margin-bottom:5px">ðµ Monto a invertir ($)</label>
+      `<label style="font-size:11px;color:#64748b;display:block;margin-bottom:5px">💵 Monto a invertir ($)</label>
       <input id="trade-amount" type="number" value="${Math.round(capital*risk/100)}" min="1" step="1" class="modal-input"/>
-      <div style="font-size:10px;color:#64748b;margin-top:4px">â ${mid&&leverage?(capital*risk/100/(mid*leverage)).toFixed(2):'--'} lotes</div>`}
+      <div style="font-size:10px;color:#64748b;margin-top:4px">≈ ${mid&&leverage?(capital*risk/100/(mid*leverage)).toFixed(2):'--'} lotes</div>`}
 
       <div style="margin-bottom:12px"></div>
       <div style="background:#1a1208;border-radius:8px;padding:8px;margin-bottom:14px;font-size:10px;color:#f59e0b">
-        â ï¸ Esta es una posiciÃ³n con apalancamiento ${leverage}x. Verifica antes de confirmar.
+        ⚠️ Esta es una posición con apalancamiento ${leverage}x. Verifica antes de confirmar.
       </div>
       <div style="display:grid;grid-template-columns:1fr 2fr;gap:8px">
         <button onclick="closeModal()" style="background:#162035;border:1px solid #1e2d45;border-radius:8px;padding:11px;color:#94a3b8;cursor:pointer;font-size:14px;font-weight:700">Cancelar</button>
-        <button onclick="openTradeH()" ${tradeLoading?"disabled":""}  style="padding:11px;border-radius:8px;border:none;cursor:pointer;font-size:14px;font-weight:700;background:${tradeLoading?"#374151":"linear-gradient(135deg,#059669,#10b981)"};color:#fff">${tradeLoading?"ð Abriendo...":buy?"ð¢ COMPRA":"ð´ VENTA"}</button>
+        <button onclick="openTradeH()" ${tradeLoading?"disabled":""}  style="padding:11px;border-radius:8px;border:none;cursor:pointer;font-size:14px;font-weight:700;background:${tradeLoading?"#374151":"linear-gradient(135deg,#059669,#10b981)"};color:#fff">${tradeLoading?"🔁 Abriendo...":buy?"🟢 COMPRA":"🔴 VENTA"}</button>
       </div>
     </div>
   </div>`;
@@ -558,7 +559,7 @@ function openTradeH(){
   openTrade(size.toFixed(2), true);
 }
 
-// â MAIN RENDER â
+// — MAIN RENDER —
 function render(){
   const root=document.getElementById("app");
   const isMobile=view==="phone";
@@ -567,29 +568,29 @@ function render(){
     root.innerHTML=`<div style="max-width:400px;margin:0 auto">
       <div class="card">
         <h2 style="margin-bottom:16px;color:#fff;font-size:24px">Trading AI Predictor v5.0</h2>
-        <p style="color:#64748b;margin-bottom:16px">ConÃ©ctate con tu API Key de Capital.com</p>
+        <p style="color:#64748b;margin-bottom:16px">Conéctate con tu API Key de Capital.com</p>
         <div id="l-err" style="display:none" class="err"></div>
         <input id="l-key" placeholder="API Key" style="width:100%;padding:10px;margin-bottom:8px;background:#060a10;border:1px solid #1e2d45;border-radius:8px;color:#fff;font-size:14px"/>
         <input id="l-email" placeholder="Email" style="width:100%;padding:10px;margin-bottom:8px;background:#060a10;border:1px solid #1e2d45;border-radius:8px;color:#fff;font-size:14px"/>
         <input id="l-pass" type="password" placeholder="Password" style="width:100%;padding:10px;margin-bottom:8px;background:#060a10;border:1px solid #1e2d45;border-radius:8px;color:#fff;font-size:14px"/>
         <label style="display:flex;align-items:center;gap:8px;margin-bottom:16px;color:#64748b;font-size:12px"><input id="l-demo" type="checkbox" checked/> DEMO Mode</label>
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
           <div id="srv-badge">${_srvBadge()}</div>
           <div style="font-size:10px;color:#475569">Render free tier</div>
         </div>
-        <button id="l-btn" onclick="doLogin()" class="btn-buy" style="width:100%;font-size:14px">ð Conectar a Capital.com</button>
+        <button id="l-btn" onclick="doLogin()" class="btn-buy" style="width:100%;font-size:14px">🔌 Conectar a Capital.com</button>
         <div style="font-size:10px;color:#475569;text-align:center;margin-top:8px">
-          La primera conexiÃ³n del dÃ­a puede tardar hasta 60 segundos
+          La primera conexión del día puede tardar hasta 60 segundos
         </div>
       </div>
     </div>`;
     return;
   }
 
-  root.innerHTML<`<div style="max-width:${isMobile?"520":"1400"}px;margin:0 auto">
+  root.innerHTML=`<div style="max-width:${isMobile?"520":"1400"}px;margin:0 auto">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <div style="font-size:13px;color:#fff;font-weight:700">${asset.d} &middot; Capital.com ${sess.demo?"DEMO":"LIVE"}</div>
-      <div style="font-size:11px;color:#64748b">Balance: $${balance?.toFixed(2)||"â"} ${currency}</div>
+      <div style="font-size:11px;color:#64748b">Balance: $${balance?.toFixed(2)||"—"} ${currency}</div>
     </div>
 
     ${isMobile?`<div style="display:flex;gap:4px;overflow-x:auto;padding:8px 0;margin-bottom:8px">
@@ -609,34 +610,34 @@ function render(){
       </div>
       <canvas id="chart-main" style="width:100%;height:300px;display:block;margin-bottom:8px"></canvas>
       <div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;color:#64748b">
-        <div>ð Scroll zoom | ð±ï¸ Pan</div>
+        <div>📊 Scroll zoom | 🖱️ Pan</div>
         <div>Precio: <span style="color:#fff;font-weight:700">${fmt(mid)}</span></div>
       </div>
     </div>
 
     ${sig?`<div style="margin-bottom:12px">
       <div class="card" style="border-left:4px solid ${sig.dir==="COMPRA"?"#10b981":"#ef4444"};padding-left:12px">
-        <div style="font-size:13px;color:#fff;margin-bottom:6px"><strong>${sig.dir==="COMPRA"?"ð¢ SEÃAL DE COMPRA":"ð´ SEÃAL DE VENTA"}</strong> (Confianza: ${sig.conf}%)</div>
-        <div style="font-size:11px;color:#a0aec0;margin-bottom:8px">Razones: ${sig.reasons.slice(0,3).join(" â¢ ")}</div>
+        <div style="font-size:13px;color:#fff;margin-bottom:6px"><strong>${sig.dir==="COMPRA"?"🟢 SEÑAL DE COMPRA":"🔴 SEÑAL DE VENTA"}</strong> (Confianza: ${sig.conf}%)</div>
+        <div style="font-size:11px;color:#a0aec0;margin-bottom:8px">Razones: ${sig.reasons.slice(0,3).join(" • ")}</div>
         ${trendInfo?`<div style="font-size:10px;color:#64748b">Tendencia ${trendInfo.trend}: ${trendInfo.str} ${trendInfo.icon}</div>`:""}
       </div>
     </div>`:""}
 
     <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-      <button id="btn-analyze" onclick="doAnalyze()" class="btn-buy" style="flex:1;min-width:100px">ð Analizar</button>
-      ${sig?`<button onclick="openModalH('BUY')" class="btn-buy" style="flex:1;min-width:100px">ð¢ COMPRA</button>
-      <button onclick="openModalH('SELL')" class="btn-sell" style="flex:1;min-width:100px">ð´ VENTA</button>`:``}
+      <button id="btn-analyze" onclick="doAnalyze()" class="btn-buy" style="flex:1;min-width:100px">🔍 Analizar</button>
+      ${sig?`<button onclick="openModalH('BUY')" class="btn-buy" style="flex:1;min-width:100px">🟢 COMPRA</button>
+      <button onclick="openModalH('SELL')" class="btn-sell" style="flex:1;min-width:100px">🔴 VENTA</button>`:``}
     </div>
 
     ${indCards().map((c,i)=>`<div class="ind-card"><div style="font-size:10px;color:#64748b;text-transform:uppercase;margin-bottom:4px">${c.k}</div><div style="display:flex;justify-content:space-between"><div><div style="font-size:11px;color:#fff;font-weight:600">${c.n}</div><div style="font-size:13px;font-weight:800;color:#fff;font-family:monospace;margin-top:3px">${c.v}</div></div><div style="font-size:10px;color:#94a3b8">${c.s}</div></div></div>`).join("")}
 
     ${positions?.length>0?`<div class="card" style="margin-bottom:12px">
-      <h3 style="margin-bottom:10px;color:#fff;font-size:13px">ð Posiciones Abiertas</h3>
+      <h3 style="margin-bottom:10px;color:#fff;font-size:13px">📂 Posiciones Abiertas</h3>
       ${positions.map(p=>`<div class="pos-card"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><div style="font-weight:700;color:#fff">${p.direction} ${p.size} ${p.epic}</div><button onclick="closeTrade('${p.dealId}')" style="background:#450a0a;border:1px solid #ef4444;color:#fff;padding:4px 8px;border-radius:5px;font-size:10px;cursor:pointer">Cerrar</button></div><div style="font-size:10px;color:#64748b">Abierta en: ${p.openPrice} | P&L: $${p.profit||0}</div></div>`).join("")}
     </div>`:``}
 
     ${alertLog?.length>0?`<div class="card">
-      <h3 style="margin-bottom:8px;color:#fff;font-size:13px">ð Alertas</h3>
+      <h3 style="margin-bottom:8px;color:#fff;font-size:13px">🔔 Alertas</h3>
       <div style="max-height:200px;overflow-y:auto">
         ${alertLog.slice(0,10).map(a=>`<div class="alert-item" style="background:${a.type==="buy"?"#0a2e1f":"#2e0a0a"};margin-bottom:4px;padding:6px;border-radius:6px;font-size:10px"><span style="color:#64748b">${a.time}</span> <span style="color:#fff">${a.msg}</span></div>`).join("")}
       </div>

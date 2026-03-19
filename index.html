@@ -95,17 +95,17 @@ body{background:#060a14;color:#e2e8f0;font-family:Inter,system-ui,sans-serif;min
 <div id="sidebar-overlay" onclick="closeSidebar()"></div>
 <button id="mob-menu-btn" onclick="toggleSidebar()">☰</button>
 <div class="view-toggle">
-  <button class="view-btn on" id="btn-pc" onclick="setView('pc')">\u{1F4BB} PC</button>
-  <button class="view-btn" id="btn-phone" onclick="setView('phone')">\u{1F4F1} Phone</button>
+  <button class="view-btn on" id="btn-pc" onclick="setView('pc')">💻 PC</button>
+  <button class="view-btn" id="btn-phone" onclick="setView('phone')">📱 Phone</button>
 </div>
 <div id="app-wrap">
   <div id="sidebar">
     <div class="sidebar-logo">
-      <div style="font-size:22px">\u{1F4C8}</div>
+      <div style="font-size:22px">📈</div>
       <div><h1>Trading AI</h1><span>Predictor v6.1 · Capital.com</span></div>
     </div>
     <div style="padding:8px">
-      <input class="search-inp" id="asset-search" placeholder="\u{1F50D} Buscar activo..." oninput="filterAssets(this.value)"/>
+      <input class="search-inp" id="asset-search" placeholder="🔍 Buscar activo..." oninput="filterAssets(this.value)"/>
     </div>
     <div id="cat-list" style="padding:4px 8px"></div>
     <div id="asset-list-wrap" style="padding:0 8px 12px;overflow-y:auto;flex:1"></div>
@@ -741,6 +741,7 @@ function destroyChart(){
 function buildChart(){
   const container=document.getElementById('chart-container');
   if(!container||!window.LightweightCharts)return;
+  if(container.offsetWidth===0){requestAnimationFrame(buildChart);return;}
   destroyChart();
   lwChart=LightweightCharts.createChart(container,{
     width:container.offsetWidth,height:container.offsetHeight||360,
@@ -1416,7 +1417,7 @@ function renderAlerts(){
 }
 
 function renderSRSection(){
-  if(!uindow._sr?.length)return'';
+  if(!window._sr?.length)return'';
   return`
   <div class="card" style="margin-bottom:12px">
     <div style="font-size:12px;font-weight:700;color:#fff;margin-bottom:8px">\u{1F4CC} Soportes y Resistencias</div>

@@ -952,31 +952,7 @@ async function fetchAccount(){
     // Use preferred (active) account, fall back to first
     const active=accounts.find(a=>a.preferred)||accounts[0];
     if(active){
-      balance=active.balance?.available;currency=active.currency||'USD';currentAccount=active;
-    }
-  }catch{}
-}
-
-async function fetchPositions(){
-  if(!sess)return;
-  try{
-    const {ohAccount:',e.message);}
-}
-
-async function fetchPositions(){
-  if(!sess)return;
-  try{
-    const {ok,d}=await apiFetch(PROXY+"/positions",{headers:getH()});
-    if(!ok)return;
-    // Capital.com returns [{position:{dealId,direction,size,openLevel,...},market:{epic,...}}]
-    // Flatten to a single object per position
-    positions=(d?.positions||[]).map(item=>{
-      if(item&&item.position){
-        return{
-          dealId:item.position.dealId||item.position.dealReference,
-          direction:item.position.direction,
-          size:item.position.size,
-          openLevel:item.position.openLeveble??active.balance?.balance??active.balance;
+      balance=active.available??active.balance?.balance??active.balance;
       currency=active.currency||"USD";
       currentAccount=active;
     }
@@ -1021,7 +997,20 @@ async function doAnalyze(silent=false){
     const {ok:mok,d:md}=await apiFetch(PROXY+"/markets/"+asset.epic,{headers:getH()});
     if(!mok)throw new Error("HTTP error obteniendo mercado");
     bid=md?.snapshot?.bid||md?.snapshot?.offer;
-    ask=md?.snapshot?.ask||md?.snapshot?.o.length-1-i)*TF_SECS[tfIdx])
+    ask=md?.snapshot?.ask||md?.snapshot?.offer||bid;
+    if(!bid)throw new Error("Activo no disponible o mercado cerrado");
+    mid=(bid+ask)/2;
+
+    let cands;
+    try{
+      const {d:pd}=await apiFetch(PROXY+"/prices/"+asset.epic+"?resolution="+TFS[tfIdx].v+"&max=100",{headers:getH()});
+      if(pd?.prices?.length>=10){
+        cands=pd.prices.map((p,i)=>({
+          o:(p.openPrice.bid+p.openPrice.ask)/2,
+          h:(p.highPrice.bid+p.highPrice.ask)/2,
+          l:(p.lowPrice.bid+p.lowPrice.ask)/2,
+          c:(p.closePrice.bid+p.closePrice.ask)/2,
+          time:parseCapTime(p.snapshotTime)||(Math.floor(Date.now()/1000)-(pd.prices.length-1-i)*TF_SECS[tfIdx])
         }));
       }else throw new Error("Datos insuficientes");
     }catch{cands=addTimes(genC(mid,100));}

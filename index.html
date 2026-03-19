@@ -892,7 +892,7 @@ async function apiFetch(url,opts={},_r=0){
     serverStatus='cold';
     const b=document.getElementById('srv-badge');
     if(b)b.innerHTML=srvBadge();
-    if(_r<1){toast('🔄 Servidor despertando… Reintentando en 35s','warn');await new Promise(res=>setTimeout(res,35000));return apiFetch(url,opts,1);}
+    if(_r<1){toast('Servidor despertando... Reintentando pronto','warn');const _t=Date.now();while(Date.now()-_t<65000){await new Promise(_s=>setTimeout(_s,5000));try{const _p=await fetch(PROXY+'/');const _tx=await _p.text();if(!_tx.trimStart().startsWith('<'))break;}catch(_e){}}return apiFetch(url,opts,1);}
     throw new Error('🔄 Proxy sin respuesta. Recarga y espera 30s.');
   }
   let d;
@@ -900,6 +900,7 @@ async function apiFetch(url,opts={},_r=0){
   return {ok:r.ok,status:r.status,d};
 }
 
+function keepProxyWarm(){if(sess){fetch(PROXY+'/').catch(()=>{});setTimeout(keepProxyWarm,600000);}}
 async function doLogin(){
   const ak=document.getElementById("l-key").value.trim();
   const em=document.getElementById("l-email").value.trim();
@@ -942,6 +943,7 @@ async function doLogin(){
   startTimers();
   layoutReady=false;
   render();
+  keepProxyWarm();
   doAnalyze();
 }
 
@@ -1078,7 +1080,8 @@ async function openTrade(size,useSLTP){
       const hint=errCode||('HTTP '+status);
       throw new Error(hint+' | Respuesta: '+JSON.stringify(d).slice(0,120));
     }
-    toast("✅ "+direction+" "+sz+" "+asset.d+(dealRef?" · Ref:"+dealRef:""),"success");
+    if(dealRef){try{await new Promise(_s=>setTimeout(_s,800));const {ok:_cok,d:_cd}=await apiFetch(PROXY+'/confirms/'+dealRef,{headers:getH()});if(_cok&&_cd?.status==='REJECTED'){throw new Error('Orden rechazada por Capital.com: '+(_cd?.reason||_cd?.errorCode||JSON.stringify(_cd).slice(0,80)));}}catch(_ce){if(_ce.message.startsWith('Orden rechazada'))throw _ce;}}
+  toast("✅ "+direction+" "+sz+" "+asset.d+(dealRef?" · Ref:"+dealRef:""),"success");
     addAlert(direction==="BUY"?"buy":"sell","\u{1F3E6} Posición abierta "+direction+" "+sz+" "+asset.d+" @ "+fmt(mid));
     tradeModalOpen=false;
     await new Promise(r=>setTimeout(r,800));

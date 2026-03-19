@@ -885,14 +885,15 @@ function updateChart(){
 function getH(){return{"x-cst":sess.cst,"x-token":sess.token,"x-base":sess.base};}
 
 /* ===== SAFE PROXY FETCH (handles Render free-tier sleeping) ===== */
-async function apiFetch(url,opts={}){
+async function apiFetch(url,opts={},_r=0){
   const r=await fetch(url,opts);
   const txt=await r.text();
   if(txt.trimStart().startsWith('<')){
     serverStatus='cold';
     const b=document.getElementById('srv-badge');
     if(b)b.innerHTML=srvBadge();
-    throw new Error('\u{1F504} Proxy despertando... Espera ~30s y vuelve a intentarlo.');
+    if(_r<1){toast('🔄 Servidor despertando… Reintentando en 35s','warn');await new Promise(res=>setTimeout(res,35000));return apiFetch(url,opts,1);}
+    throw new Error('🔄 Proxy sin respuesta. Recarga y espera 30s.');
   }
   let d;
   try{d=JSON.parse(txt);}catch{throw new Error('Respuesta inválida del servidor: '+txt.slice(0,60));}

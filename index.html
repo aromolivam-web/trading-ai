@@ -182,7 +182,7 @@ const ALL_ASSETS = Object.values(ASSETS).flat().filter((a,i,ar)=>ar.findIndex(b=
 let view="pc", sess=null, cat="\u{1F4B1} Forex", asset=ASSETS["\u{1F4B1} Forex"][0], tfIdx=4;
 let candles=null, ind=null, sig=null, sltp=null;
 let bid=null, ask=null, mid=null, trendInfo=null;
-let positions=[], balance=null, currency="USD", currentAccount=null;
+let positions=[], balance=null, currency="USD", currentAccount=null, allAccounts=[];
 let alertLog=[], prevSig=null, prevScore=0;
 let capital=1000, risk=2, leverage=30, countdown=30;
 let liveTimer=null, countTimer=null, plTimer=null;
@@ -953,6 +953,7 @@ async function fetchAccount(){
     const {ok,d}=await apiFetch(PROXY+"/accounts",{headers:getH()});
     if(!ok)return;
     const accounts=d?.accounts||[];
+    allAccounts=accounts;
     // Use preferred (active) account, fall back to first
     const active=accounts.find(a=>a.preferred)||accounts[0];
     if(active){
@@ -961,6 +962,15 @@ async function fetchAccount(){
       currentAccount=active;
     }
   }catch(e){console.warn('fetchAccount:',e.message);}
+}
+
+function selectAccount(id){
+  const a=allAccounts.find(x=>x.accountId===id);
+  if(!a)return;
+  balance=a.available??a.balance?.balance??a.balance;
+  currency=a.currency||'USD';
+  currentAccount=a;
+  render();
 }
 
 async function fetchPositions(){
@@ -1221,6 +1231,7 @@ function renderHeader(){
     </div>
     <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
       ${balance!=null?`<div style="background:#0d1525;border:1px solid #1e2d45;border-radius:8px;padding:6px 10px;font-size:12px">\u{1F4B0} <b>$${parseFloat(balance).toFixed(2)}</b> <span style="color:#64748b">${currency}</span></div>`:''}
+      ${allAccounts.length>1?'<select onchange="selectAccount(this.value)" style="background:#0d1525;border:1px solid #6366f1;border-radius:8px;padding:5px 10px;color:#fff;font-size:11px;cursor:pointer">'+allAccounts.map(a=>'<option value="'+a.accountId+'"'+(a.accountId===currentAccount?.accountId?' selected':'')+'>'+( a.accountType||'Cuenta')+' · '+(a.currency||'USD')+' · $'+parseFloat(a.available??a.balance?.balance??a.balance??0).toFixed(2)+'</option>').join('')+'</select>':''}
       <div style="font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;${sess.demo?'background:#1a0f02;color:#f59e0b;border:1px solid #f59e0b40':'background:#021a10;color:#10b981;border:1px solid #10b98140'}">${sess.demo?"DEMO":"LIVE"}</div>
       <button onclick="doAnalyze()" id="btn-analyze" class="btn btn-primary" style="font-size:12px;padding:8px 14px">\u{1F50D} Analizar</button>
     </div>
@@ -1469,13 +1480,13 @@ function buildMainLayout(){
             </div>
           </div>
           <div id="ind-section" class="ind-grid" style="margin-bottom:12px"></div>
-          <div id="pos-section"></div>
           <div id="alerts-section"></div>
         </div>
         <div>
           <div id="sig-section"></div>
           <div id="trend-section"></div>
           <div id="trade-btns-section"></div>
+          <div id="pos-section"></div>
           <div id="sr-section"></div>
         </div>
       </div>`;

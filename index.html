@@ -1024,21 +1024,6 @@ function updateChart(){
     }catch{}
   }
 
-  // S&R lines
-  if(window._sr){
-    window._sr.forEach(lv=>{
-      try{
-        lwPriceLines.push(lwCandle.createPriceLine({
-          price:lv.price,
-          color:lv.type==='R'?'#ef444470':'#10b98170',
-          lineWidth:Math.min(2,lv.strength),
-          lineStyle:LightweightCharts.LineStyle.Dashed,
-          axisLabelVisible:true,
-          title:(lv.type==='R'?'R':'S')+lv.strength
-        }));
-      }catch{}
-    });
-  }
 
   // Historical pullback arrows + current signal
   try{
@@ -1068,47 +1053,6 @@ function updateChart(){
     lwCandle.setMarkers(markers);
   }catch(e){console.warn('markers:',e);}
 
-  // ===== Línea de proyección IA (regresión + señal) =====
-  if(lwChart&&data.length>=3&&sig&&ind){
-    try{
-      // Eliminar proyección anterior
-      if(window._lwProj){try{window._lwProj.remove();}catch{}}
-      if(window._lwProjFill){try{window._lwProjFill.remove();}catch{}}
-      const secs=TF_SECS[tfIdx]||3600;
-      const lastT=data[data.length-1].time;
-      const lastC=data[data.length-1].close;
-      const step=ind.regSlope||0;
-      const atr=ind.atr||lastC*0.005;
-      const isBuy=sig.dir==="COMPRA";
-      const projColor=isBuy?"#10b981":"#ef4444";
-      // Proyectar 5 velas adelante
-      const projData=[];
-      const bandUp=[];
-      const bandDn=[];
-      for(let i=1;i<=5;i++){
-        const t=lastT+i*secs;
-        const p=lastC+step*i+(isBuy?0.1:-0.1)*atr*i*0.5;
-        projData.push({time:t,value:p});
-        bandUp.push({time:t,value:p+atr*0.8});
-        bandDn.push({time:t,value:p-atr*0.8});
-      }
-      // Línea central de proyección
-      window._lwProj=lwChart.addLineSeries({
-        color:projColor,lineWidth:2,
-        lineStyle:LightweightCharts.LineStyle.Dashed,
-        lastValueVisible:true,priceLineVisible:false,
-        title:'IA ▦'
-      });
-      window._lwProj.setData([{time:lastT,value:lastC},...projData]);
-      // Banda superior
-      window._lwProjFill=lwChart.addLineSeries({
-        color:projColor+'40',lineWidth:1,
-        lineStyle:LightweightCharts.LineStyle.Dotted,
-        lastValueVisible:false,priceLineVisible:false
-      });
-      window._lwProjFill.setData([{time:lastT,value:lastC},...bandUp]);
-    }catch(e){console.warn('proj:',e);}
-  }
   try{lwChart.timeScale().fitContent();}catch{}
 }
 
@@ -1845,5 +1789,46 @@ renderSidebar();
 render();
 doAnalyze(true);
 </script>
+
+<!-- ===== LEGEND & HOW-TO ===== -->
+<div id="legend-section" style="background:#0f172a;color:#e2e8f0;font-family:'Inter',sans-serif;padding:2rem 1.5rem;border-top:1px solid #1e293b;">
+  <div style="max-width:1200px;margin:0 auto;">
+  <h2 style="font-size:1.3rem;font-weight:700;color:#f1f5f9;margin-bottom:1.2rem;">📊 Leyenda del Gráfico</h2>
+  <div style="display:flex;flex-wrap:wrap;gap:1rem;margin-bottom:2rem;">
+    <div style="background:#1e293b;border-radius:.6rem;padding:.8rem 1.2rem;display:flex;align-items:center;gap:.7rem;"><span style="font-size:1.4rem;color:#10b981;">▲</span><div><div style="font-weight:600;color:#10b981;">Señal BUY Actual</div><div style="font-size:.8rem;color:#94a3b8;">Flecha verde grande — precio podría subir</div></div></div>
+    <div style="background:#1e293b;border-radius:.6rem;padding:.8rem 1.2rem;display:flex;align-items:center;gap:.7rem;"><span style="font-size:1.4rem;color:#ef4444;">▼</span><div><div style="font-weight:600;color:#ef4444;">Señal SELL Actual</div><div style="font-size:.8rem;color:#94a3b8;">Flecha roja grande — precio podría bajar</div></div></div>
+    <div style="background:#1e293b;border-radius:.6rem;padding:.8rem 1.2rem;display:flex;align-items:center;gap:.7rem;"><span style="font-size:1.1rem;color:#06b6d4;">▲</span><div><div style="font-weight:600;color:#06b6d4;">BUY Histórico</div><div style="font-size:.8rem;color:#94a3b8;">Flecha cyan — señal detectada en el pasado</div></div></div>
+    <div style="background:#1e293b;border-radius:.6rem;padding:.8rem 1.2rem;display:flex;align-items:center;gap:.7rem;"><span style="font-size:1.1rem;color:#f43f5e;">▼</span><div><div style="font-weight:600;color:#f43f5e;">SELL Histórico</div><div style="font-size:.8rem;color:#94a3b8;">Flecha rosa — señal detectada en el pasado</div></div></div>
+    <div style="background:#1e293b;border-radius:.6rem;padding:.8rem 1.2rem;display:flex;align-items:center;gap:.7rem;"><span style="font-size:.9rem;color:#ef4444;">─ SL</span><div><div style="font-weight:600;color:#ef4444;">Stop Loss</div><div style="font-size:.8rem;color:#94a3b8;">Nivel de pérdida máxima sugerido</div></div></div>
+    <div style="background:#1e293b;border-radius:.6rem;padding:.8rem 1.2rem;display:flex;align-items:center;gap:.7rem;"><span style="font-size:.9rem;color:#10b981;">─ TP</span><div><div style="font-weight:600;color:#10b981;">Take Profit</div><div style="font-size:.8rem;color:#94a3b8;">Nivel de ganancia objetivo sugerido</div></div></div>
+  </div>
+  <h2 style="font-size:1.3rem;font-weight:700;color:#f1f5f9;margin-bottom:1.2rem;">🔬 Indicadores Técnicos</h2>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:.8rem;margin-bottom:2rem;">
+    <div style="background:#1e293b;border-left:3px solid #06b6d4;border-radius:.4rem;padding:.7rem 1rem;"><b style="color:#06b6d4;">RSI</b> — &lt;30 sobrevendido (BUY), &gt;70 sobrecomprado (SELL).</div>
+    <div style="background:#1e293b;border-left:3px solid #a78bfa;border-radius:.4rem;padding:.7rem 1rem;"><b style="color:#a78bfa;">MACD</b> — Histograma + = alcista, histograma − = bajista.</div>
+    <div style="background:#1e293b;border-left:3px solid #f59e0b;border-radius:.4rem;padding:.7rem 1rem;"><b style="color:#f59e0b;">EMA 9/21/50</b> — EMA9&gt;21&gt;50 = tendencia alcista fuerte.</div>
+    <div style="background:#1e293b;border-left:3px solid #10b981;border-radius:.4rem;padding:.7rem 1rem;"><b style="color:#10b981;">Bollinger</b> — Precio en banda inferior = rebote alcista posible.</div>
+    <div style="background:#1e293b;border-left:3px solid #ef4444;border-radius:.4rem;padding:.7rem 1rem;"><b style="color:#ef4444;">Stochastic</b> — &lt;20 compra, &gt;80 venta. Útil en mercados laterales.</div>
+    <div style="background:#1e293b;border-left:3px solid #06b6d4;border-radius:.4rem;padding:.7rem 1rem;"><b style="color:#06b6d4;">CCI</b> — &lt;−100 sobrevendido (BUY), &gt;100 sobrecomprado (SELL).</div>
+    <div style="background:#1e293b;border-left:3px solid #a78bfa;border-radius:.4rem;padding:.7rem 1rem;"><b style="color:#a78bfa;">Ichimoku</b> — Precio sobre la nube = alcista. Cruce Tenkan/Kijun = señal.</div>
+    <div style="background:#1e293b;border-left:3px solid #f59e0b;border-radius:.4rem;padding:.7rem 1rem;"><b style="color:#f59e0b;">Williams %R</b> — Cerca de −100 = sobrevendido, cerca de 0 = sobrecomprado.</div>
+    <div style="background:#1e293b;border-left:3px solid #10b981;border-radius:.4rem;padding:.7rem 1rem;"><b style="color:#10b981;">ADX</b> — &gt;25 tendencia fuerte. &lt;20 mercado lateral o sin dirección.</div>
+    <div style="background:#1e293b;border-left:3px solid #ef4444;border-radius:.4rem;padding:.7rem 1rem;"><b style="color:#ef4444;">ATR</b> — Mide volatilidad. Alto ATR = movimiento brusco esperado.</div>
+    <div style="background:#1e293b;border-left:3px solid #06b6d4;border-radius:.4rem;padding:.7rem 1rem;"><b style="color:#06b6d4;">Soporte/Resistencia</b> — Niveles clave donde el precio suele rebotar.</div>
+    <div style="background:#1e293b;border-left:3px solid #a78bfa;border-radius:.4rem;padding:.7rem 1rem;"><b style="color:#a78bfa;">Confianza %</b> — Score IA (0–100). Mayor % = señal más fuerte.</div>
+  </div>
+  <h2 style="font-size:1.3rem;font-weight:700;color:#f1f5f9;margin-bottom:1.2rem;">🚀 Cómo Usar la Plataforma</h2>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem;margin-bottom:1.5rem;">
+    <div style="background:#1e293b;border-radius:.6rem;padding:1rem 1.2rem;"><div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.6rem;"><span style="background:#06b6d4;color:#0f172a;font-weight:700;border-radius:50%;width:1.6rem;height:1.6rem;display:flex;align-items:center;justify-content:center;">1</span><b style="color:#e2e8f0;">Conectar cuenta</b></div><p style="font-size:.83rem;color:#94a3b8;margin:0;">Ingresa tu API Key de Capital.com y haz clic en Conectar. Necesitas una cuenta activa con datos en tiempo real.</p></div>
+    <div style="background:#1e293b;border-radius:.6rem;padding:1rem 1.2rem;"><div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.6rem;"><span style="background:#a78bfa;color:#0f172a;font-weight:700;border-radius:50%;width:1.6rem;height:1.6rem;display:flex;align-items:center;justify-content:center;">2</span><b style="color:#e2e8f0;">Elegir activo y temporalidad</b></div><p style="font-size:.83rem;color:#94a3b8;margin:0;">Selecciona el instrumento (EUR/USD, BTC…) y marco temporal. Temporalidades altas (1h, 4h, 1D) = menos ruido y señales más fiables.</p></div>
+    <div style="background:#1e293b;border-radius:.6rem;padding:1rem 1.2rem;"><div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.6rem;"><span style="background:#10b981;color:#0f172a;font-weight:700;border-radius:50%;width:1.6rem;height:1.6rem;display:flex;align-items:center;justify-content:center;">3</span><b style="color:#e2e8f0;">Analizar el gráfico</b></div><p style="font-size:.83rem;color:#94a3b8;margin:0;">Las flechas pequeñas cyan/rosa muestran señales históricas de la IA. Úsalas para evaluar la precisión en ese activo.</p></div>
+    <div style="background:#1e293b;border-radius:.6rem;padding:1rem 1.2rem;"><div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.6rem;"><span style="background:#f59e0b;color:#0f172a;font-weight:700;border-radius:50%;width:1.6rem;height:1.6rem;display:flex;align-items:center;justify-content:center;">4</span><b style="color:#e2e8f0;">Interpretar la señal actual</b></div><p style="font-size:.83rem;color:#94a3b8;margin:0;">Flecha grande verde ▲ BUY o roja ▼ SELL con % confianza. El panel lateral muestra SL (stop loss) y TP (take profit) sugeridos.</p></div>
+    <div style="background:#1e293b;border-radius:.6rem;padding:1rem 1.2rem;"><div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.6rem;"><span style="background:#ef4444;color:#fff;font-weight:700;border-radius:50%;width:1.6rem;height:1.6rem;display:flex;align-items:center;justify-content:center;">5</span><b style="color:#e2e8f0;">Ejecutar la operación</b></div><p style="font-size:.83rem;color:#94a3b8;margin:0;">Coloca la orden en tu plataforma (Capital.com u otra) en la dirección indicada. Usa el SL y TP como referencia y ajusta a tu perfil de riesgo.</p></div>
+    <div style="background:#1e293b;border-radius:.6rem;padding:1rem 1.2rem;"><div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.6rem;"><span style="background:#06b6d4;color:#0f172a;font-weight:700;border-radius:50%;width:1.6rem;height:1.6rem;display:flex;align-items:center;justify-content:center;">6</span><b style="color:#e2e8f0;">Gestión de riesgo</b></div><p style="font-size:.83rem;color:#94a3b8;margin:0;">Nunca arriesgues más del 1–2% por operación. Espera confianza &gt;65%. La IA es una herramienta de apoyo, no una garantía.</p></div>
+  </div>
+  <p style="text-align:center;font-size:.75rem;color:#475569;">⚠️ Análisis orientativo. El trading conlleva riesgo de pérdida. Opera con responsabilidad.</p>
+  </div>
+</div>
+<!-- ===== END LEGEND ===== -->
 </body>
 </html>

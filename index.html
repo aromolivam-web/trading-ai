@@ -184,7 +184,7 @@ let candles=null, ind=null, sig=null, sltp=null;
 let bid=null, ask=null, mid=null, trendInfo=null;
 let positions=[], balance=null, currency="USD", currentAccount=null, allAccounts=[];
 let alertLog=[], prevSig=null, prevScore=0;
-let capital=1000, risk=2, leverage=30, countdown=30;
+let capital=1000, risk=2, leverage=30, countdown=30, refreshInterval=30;
 let liveTimer=null, countTimer=null, plTimer=null;
 let tradeModalOpen=false, tradeMode='lots', tradeLoading=false;
 let serverStatus='cold', searchQuery='';
@@ -763,6 +763,96 @@ function buildChart(){
   ro.observe(container);
 }
 
+function computeHistoricalSignals(cds){
+  if(!cds||cds.length<30)return[];
+  const sr=calcSR(cds);
+  const cdsRange=Math.max(...cds.slice(-20).map(x=>x.h))-Math.min(...cds.slice(-20).map(x=>x.l))||0.001;
+  const tol=cdsRange*0.012;
+  const sigs=[];
+  let lastIdx=-6;
+  let lastDir=null;
+
+  for(let i=27;i<cds.length-1;i++){
+    if(i-lastIdx<3)continue;
+    const sl=cds.slice(Math.max(0,i-59),i+1);
+    const id=calcInd(sl);
+    // Previous candle indicators for crossover detection
+    const psl=cds.slice(Math.max(0,i-60),i);
+    const pid=psl.length>=25?calcInd(psl):id;
+
+    // === Structural signals (swing high/low) ===
+    const swLow=cds[i].l<cds[i-1].l&&cds[i].l<cds[i-2].l&&cds[i].l<=cds[i+1].l&&(i<3||cds[i].l<=cds[i-3].l);
+    const swHigh=cds[i].h>cds[i-1].h&&cds[i].h>cds[i-2].h&&cds[i].h>=cds[i+1].h&&(i<3||cds[i].h>=cds[i-3].h);
+
+    // === Pure indicator crossovers (trend change signals) ===
+    const macdCrossUp=id.hist>0&&pid.hist<=0;
+    const macdCrossDown=id.hist<0&&pid.hist>=0;
+    const emaCrossUp=id.ema9>id.ema21&&pid.ema9<=pid.ema21;
+    const emaCrossDown=id.ema9<id.ema21&&pid.ema9>=pid.ema21;
+    const tkCrossUp=id.tenkan>id.kijun&&pid.tenkan<=pid.kijun;
+    const tkCrossDown=id.tenkan<id.kijun&&pid.tenkan>=pid.kijun;
+    const rsiRecovery=pid.rsi<32&&id.rsi>pid.rsi&&id.rsi>32; // RSI bouncing from oversold
+    const rsiRejection=pid.rsi>68&&id.rsi<pid.rsi&&id.rsi<68; // RSI dropping from overbought
+    const stochCrossUp=id.stochK>22&&pid.stochK<=22;
+    const stochCrossDown=id.stochK<78&&pid.stochK>=78;
+    const bbBreakUp=id.hist>0&&sl[sl.length-1].c>id.bbu&&pid.hist<=0; // BB squeeze breakout up
+    const bbBreakDown=id.hist<0&&sl[sl.length-1].c<id.bbl&&pid.hist>=0; // BB squeeze breakout down
+
+    // === BUY confluence score ===
+    let bs=0;
+    if(id.rsi<28)bs+=5;else if(id.rsi<35)bs+=3;else if(id.rsi<45)bs+=1;
+    if(macdCrossUp)bs+=5;else if(id.macd>0&&id.hist>0)bs+=1;
+    if(emaCrossUp)bs+=4;else if(id.ema9>id.ema21)bs+=1;
+    if(id.ema21>id.ema50)bs+=1;
+    if(id.stochK<20)bs+=4;else if(stochCrossUp)bs+=3;else if(id.stochK<35)bs+=1;
+    if(id.cci<=-120)bs+=4;else if(id.cci<=-80)bs+=2;else if(id.cci<=-40)bs+=1;
+    if(sl[sl.length-1].c<=id.bbl)bs+=4;else if(sl[sl.length-1].c<id.bbSm)bs+=1;
+    if(id.willR<-85)bs+=3;else if(id.willR<-70)bs+=1;
+    if(id.macroTrend>0)bs+=1;
+    if(tkCrossUp)bs+=4;else if(id.tenkan>id.kijun)bs+=2;
+    if(id.ichimokuBull)bs+=2;
+    if(id.regSlope>0&&id.regR2>0.5)bs+=2;
+    if(id.adx>25&&id.diPlus>id.diMinus)bs+=2;
+    if(rsiRecovery)bs+=3;
+    if(bbBreakUp)bs+=3;
+    if(sr.find(v=>v.type==='S'&&Math.abs(cds[i].l-v.price)<=tol))bs+=5;
+    // Momentum: last 3 candles green after low?
+    if(i>=3&&cds[i].c>cds[i].o&&cds[i-1].l<=cds[i].l)bs+=1;
+
+    // === SELL confluence score ===
+    let ss=0;
+    if(id.rsi>72)ss+=5;else if(id.rsi>65)ss+=3;else if(id.rsi>55)ss+=1;
+    if(macdCrossDown)ss+=5;else if(id.macd<0&&id.hist<0)ss+=1;
+    if(emaCrossDown)ss+=4;else if(id.ema9<id.ema21)ss+=1;
+    if(id.ema21<id.ema50)ss+=1;
+    if(id.stochK>80)ss+=4;else if(stochCrossDown)ss+=3;else if(id.stochK>65)ss+=1;
+    if(id.cci>=120)ss+=4;else if(id.cci>=80)ss+=2;else if(id.cci>=40)ss+=1;
+    if(sl[sl.length-1].c>=id.bbu)ss+=4;else if(sl[sl.length-1].c>id.bbSm)ss+=1;
+    if(id.willR>-15)ss+=3;else if(id.willR>-30)ss+=1;
+    if(id.macroTrend<0)ss+=1;
+    if(tkCrossDown)ss+=4;else if(id.tenkan<id.kijun)ss+=2;
+    if(id.ichimokuBear)ss+=2;
+    if(id.regSlope<0&&id.regR2>0.5)ss+=2;
+    if(id.adx>25&&id.diMinus>id.diPlus)ss+=2;
+    if(rsiRejection)ss+=3;
+    if(bbBreakDown)ss+=3;
+    if(sr.find(v=>v.type==='R'&&Math.abs(cds[i].h-v.price)<=tol))ss+=5;
+    if(i>=3&&cds[i].c<cds[i].o&&cds[i-1].h>=cds[i].h)ss+=1;
+
+    // === Strong crossover combos (no swing needed) ===
+    const strongBuy=macdCrossUp&&(emaCrossUp||rsiRecovery||stochCrossUp||tkCrossUp)&&bs>=8&&lastDir!=='BUY';
+    const strongSell=macdCrossDown&&(emaCrossDown||rsiRejection||stochCrossDown||tkCrossDown)&&ss>=8&&lastDir!=='SELL';
+
+    const minScore=7;
+    if((swLow&&bs>=minScore&&bs>ss&&lastDir!=='BUY')||strongBuy){
+      sigs.push({time:cds[i].time,dir:'BUY',score:bs,cross:!swLow});lastIdx=i;lastDir='BUY';
+    }else if((swHigh&&ss>=minScore&&ss>bs&&lastDir!=='SELL')||strongSell){
+      sigs.push({time:cds[i].time,dir:'SELL',score:ss,cross:!swHigh});lastIdx=i;lastDir='SELL';
+    }
+  }
+  return sigs;
+}
+
 function updateChart(){
   if(!candles||!candles.length)return;
   // If chart was destroyed (e.g. TF change) but container still in DOM, rebuild
@@ -810,32 +900,33 @@ function updateChart(){
     });
   }
 
-  // Signal markers: predictive (emerging) + confirmed
-  if(sig&&data.length>=2){
-    const markers=[];
-    const last=data[data.length-1];
-
-    if(sig.emerging&&data.length>=3){
-      // Predictive arrow on 2nd-to-last candle
+  // Historical pullback arrows + current signal
+  try{
+    const histSigs=computeHistoricalSignals(candles);
+    const markers=histSigs.map(s=>({
+      time:s.time,
+      position:s.dir==='BUY'?'belowBar':'aboveBar',
+      color:s.dir==='BUY'?'#06b6d4aa':'#f43f5eaa',
+      shape:s.dir==='BUY'?'arrowUp':'arrowDown',
+      text:'',size:1
+    }));
+    if(sig&&data.length>=1){
+      const last=data[data.length-1];
+      const isBuy=sig.dir==='COMPRA';
+      const dup=markers.findIndex(m=>m.time===last.time);
+      if(dup>=0)markers.splice(dup,1);
       markers.push({
-        time:data[data.length-2].time,
-        position:sig.dir==="COMPRA"?'belowBar':'aboveBar',
-        color:'#f59e0b',shape:'circle',
-        text:'⚡ '+sig.conf+'%',id:1
+        time:last.time,
+        position:isBuy?'belowBar':'aboveBar',
+        color:isBuy?'#10b981':'#ef4444',
+        shape:isBuy?'arrowUp':'arrowDown',
+        text:(isBuy?'▲ BUY':'▼ SELL')+' '+sig.conf+'%',
+        size:3
       });
     }
-
-    // Main signal arrow on last candle
-    markers.push({
-      time:last.time,
-      position:sig.dir==="COMPRA"?'belowBar':'aboveBar',
-      color:sig.dir==="COMPRA"?'#10b981':'#ef4444',
-      shape:sig.dir==="COMPRA"?'arrowUp':'arrowDown',
-      text:(sig.dir==="COMPRA"?'▲ BUY':'▼ SELL')+' '+sig.conf+'%',
-      size:sig.strength==='FUERTE'?3:2
-    });
-    try{lwCandle.setMarkers(markers);}catch{}
-  }
+    markers.sort((a,b)=>a.time-b.time);
+    lwCandle.setMarkers(markers);
+  }catch(e){console.warn('markers:',e);}
 
   // ===== Línea de proyección IA (regresión + señal) =====
   if(lwChart&&data.length>=3&&sig&&ind){
@@ -1017,7 +1108,7 @@ async function doAnalyze(silent=false){
 
     let cands;
     try{
-      const {d:pd}=await apiFetch(PROXY+"/prices/"+asset.epic+"?resolution="+TFS[tfIdx].v+"&max=100",{headers:getH()});
+      const {d:pd}=await apiFetch(PROXY+"/prices/"+asset.epic+"?resolution="+TFS[tfIdx].v+"&max=200",{headers:getH()});
       if(pd?.prices?.length>=10){
         cands=pd.prices.map((p,i)=>({
           o:(p.openPrice.bid+p.openPrice.ask)/2,
@@ -1036,7 +1127,7 @@ async function doAnalyze(silent=false){
     sig=calcSig(candles,ind,sr);
     sltp=calcSLTP(mid,sig.dir,ind.atr);
     trendInfo=calcTrend(candles,ind);
-    countdown=30;
+    countdown=refreshInterval;
 
     if(prevSig&&prevSig!==sig.dir)
       addAlert(sig.dir==="COMPRA"?"buy":"sell","\u{1F4CA} "+asset.d+" — "+(sig.dir==="COMPRA"?"\u{1F7E2} COMPRA":"\u{1F534} VENTA")+" @ "+fmt(mid));
@@ -1131,15 +1222,20 @@ function calcLivePL(pos){
   return diff*(pos.size||0.1)*(asset.dig>=5?100000:1);
 }
 
+function setRefreshInterval(v){
+  refreshInterval=parseInt(v)||30;
+  countdown=refreshInterval;
+  startTimers();
+}
 function startTimers(){
   clearInterval(liveTimer);clearInterval(countTimer);clearInterval(plTimer);
   // Main analysis every 30s (no layout rebuild)
-  liveTimer=setInterval(()=>{if(candles&&sess)doAnalyze(true);},30000);
+  liveTimer=setInterval(()=>{if(candles&&sess)doAnalyze(true);},refreshInterval*1000);
   // Countdown
   countTimer=setInterval(()=>{
-    countdown=countdown<=1?30:countdown-1;
+    countdown=countdown<=1?refreshInterval:countdown-1;
     const el=document.getElementById("cd-bar");
-    if(el)el.style.width=(countdown/30*100)+"%";
+    if(el)el.style.width=(countdown/refreshInterval*100)+"%";
     const ct=document.getElementById("cd-text");
     if(ct)ct.textContent=countdown+"s";
   },1000);
@@ -1241,11 +1337,14 @@ function renderHeader(){
     <div style="display:flex;gap:4px;flex-wrap:wrap">
       ${TFS.map((tf,i)=>`<button class="tf-btn ${tfIdx===i?'on':''}" onclick="tfIdx=${i};destroyChart();doAnalyze()">${tf.i}</button>`).join('')}
     </div>
-    <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#64748b">
-      <span>\u{1F504} Próxima: <span id="cd-text" style="color:#fff;font-weight:700">${countdown}s</span></span>
+    <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:#64748b;flex-wrap:wrap">
+      <span>\u{1F504} <span id="cd-text" style="color:#fff;font-weight:700">${countdown}s</span></span>
+      <select onchange="setRefreshInterval(this.value)" style="background:#0d1525;border:1px solid #1e2d45;border-radius:6px;padding:3px 8px;color:#94a3b8;font-size:10px;cursor:pointer">
+        ${[5,10,15,20,30,60].map(s=>`<option value="${s}"${refreshInterval===s?' selected':''}>${s}s</option>`).join('')}
+      </select>
     </div>
   </div>
-  <div class="cd-wrap"><div id="cd-bar" class="cd-bar" style="width:${countdown/30*100}%"></div></div>`;
+  <div class="cd-wrap"><div id="cd-bar" class="cd-bar" style="width:${Math.min(100,(countdown/refreshInterval)*100)}%"></div></div>`
 }
 
 function renderSigCard(){

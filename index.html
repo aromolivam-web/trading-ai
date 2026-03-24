@@ -777,221 +777,241 @@ function computeHistoricalSignals(cds){
   if(!cds||cds.length<35)return[];
   const sr=calcSR(cds);
   const sigs=[];
-  let lastIdx=-8;
+  let lastIdx=-6;
   let lastDir=null;
 
   for(let i=28;i<cds.length-2;i++){
-    if(i-lastIdx<5)continue;
+    if(i-lastIdx<3)continue;
 
-    // Rolling indicator window (last 60 candles up to i)
+    // === INDICADORES (ventana deslizante) ===
     const sl=cds.slice(Math.max(0,i-59),i+1);
     const id=calcInd(sl);
-    // Previous bar indicators (for crossover detection)
     const psl=cds.slice(Math.max(0,i-60),i);
     const pid=psl.length>=26?calcInd(psl):id;
-    // Macro trend window (last 100 candles) - determines overall direction
+    // Macro trend: ventana 100 velas
     const msl=cds.slice(Math.max(0,i-99),i+1);
-    const mid2=msl.length>=50?calcInd(msl):id;
+    const mid=msl.length>=50?calcInd(msl):id;
 
-    // ── Macro trend classification ──────────────────────────────
-    const macroUp=mid2.ema9>mid2.ema21&&mid2.ema21>mid2.ema50;
-    const macroDown=mid2.ema9<mid2.ema21&&mid2.ema21<mid2.ema50;
-    // Trend strength via ADX
-    const strongTrend=id.adx>28;
-    const weakTrend=id.adx<18;
+    // === TENDENCIA MACRO (bonus, no bloqueo absoluto) ===
+    const macroUp=mid.ema9>mid.ema21&&mid.ema21>mid.ema50;
+    const macroDown=mid.ema9<mid.ema21&&mid.ema21<mid.ema50;
+    const adxStrong=id.adx>22;
 
-    // ── Structural swings ───────────────────────────────────────
-    const swLow=cds[i].l<cds[i-1].l&&cds[i].l<cds[i-2].l&&
-                cds[i].l<=cds[i+1].l&&(i<3||cds[i].l<=cds[i-3].l);
-    const swHigh=cds[i].h>cds[i-1].h&&cds[i].h>cds[i-2].h&&
-                 cds[i].h>=cds[i+1].h&&(i<3||cds[i].h>=cds[i-3].h);
+    // === DETECCION DE SWING: 2-barras (sensible) y 4-barras (fuerte) ===
+    const swLow2=cds[i].l<cds[i-1].l&&cds[i].l<=cds[i+1].l;
+    const swHigh2=cds[i].h>cds[i-1].h&&cds[i].h>=cds[i+1].h;
+    const swLow4=cds[i].l<cds[i-1].l&&cds[i].l<cds[i-2].l&&
+                  cds[i].l<=cds[i+1].l&&(i<3||cds[i].l<=cds[i-3].l);
+    const swHigh4=cds[i].h>cds[i-1].h&&cds[i].h>cds[i-2].h&&
+                   cds[i].h>=cds[i+1].h&&(i<3||cds[i].h>=cds[i-3].h);
 
-    // ── Next-candle confirmation (lookahead) ────────────────────
-    // The MOST important anti-false-signal filter:
-    // at candle[i] we have a swing, but candle[i+1] must confirm the reversal
-    const buyConf=cds[i+1].c>cds[i+1].o&&cds[i+1].c>cds[i].c; // next candle is bullish AND closes above current
-    const sellConf=cds[i+1].c<cds[i+1].o&&cds[i+1].c<cds[i].c; // next candle is bearish AND closes below current
+    // === CONFIRMACION DE VELA SIGUIENTE ===
+    const buyConf=cds[i+1].c>cds[i+1].o&&cds[i+1].c>cds[i].c;
+    const sellConf=cds[i+1].c<cds[i+1].o&&cds[i+1].c<cds[i].c;
 
-    // ── Indicator crossovers ────────────────────────────────────
+    // === CRUCES DE INDICADORES ===
     const macdCrossUp=id.hist>0&&pid.hist<=0;
     const macdCrossDown=id.hist<0&&pid.hist>=0;
-    const histImproving=id.hist>pid.hist; // histogram getting more positive
-    const histDeterior=id.hist<pid.hist;  // histogram getting more negative
+    const histImproving=id.hist>pid.hist;
+    const histDeterior=id.hist<pid.hist;
     const emaCrossUp=id.ema9>id.ema21&&pid.ema9<=pid.ema21;
     const emaCrossDown=id.ema9<id.ema21&&pid.ema9>=pid.ema21;
     const tkCrossUp=id.tenkan>id.kijun&&pid.tenkan<=pid.kijun;
     const tkCrossDown=id.tenkan<id.kijun&&pid.tenkan>=pid.kijun;
-    const rsiUp=pid.rsi<32&&id.rsi>pid.rsi+1; // RSI recovering from oversold
-    const rsiDown=pid.rsi>68&&id.rsi<pid.rsi-1; // RSI declining from overbought
-    const stochUp=id.stochK>20&&pid.stochK<=20;
-    const stochDown=id.stochK<80&&pid.stochK>=80;
+    const rsiUp=pid.rsi<38&&id.rsi>pid.rsi+0.5;
+    const rsiDown=pid.rsi>62&&id.rsi<pid.rsi-0.5;
+    const stochUp=id.stochK>15&&pid.stochK<=15;
+    const stochDown=id.stochK<85&&pid.stochK>=85;
 
-    // S/R proximity
+    // === SOPORTE / RESISTENCIA ===
     const priceRange=Math.max(...cds.slice(Math.max(0,i-19),i+1).map(x=>x.h))-
                      Math.min(...cds.slice(Math.max(0,i-19),i+1).map(x=>x.l))||0.001;
-    const tol=priceRange*0.013;
+    const tol=priceRange*0.016;
     const atSupport=!!sr.find(v=>v.type==='S'&&Math.abs(cds[i].l-v.price)<=tol&&v.strength>=2);
     const atResist=!!sr.find(v=>v.type==='R'&&Math.abs(cds[i].h-v.price)<=tol&&v.strength>=2);
 
-    // ═══════════════════════════════════════════════════════════
-    // BUY SCORE — each factor weighted by reliability
-    // ═══════════════════════════════════════════════════════════
+    // === EXTREMOS SOBREVENDIDO/SOBRECOMPRADO (clave para pullbacks) ===
+    const curC=sl[sl.length-1].c;
+    const oversoldCnt=(id.rsi<32?1:0)+(id.stochK<22?1:0)+(id.willR<-82?1:0)+(id.cci<-90?1:0)+(curC<=id.bbl?1:0);
+    const overboughtCnt=(id.rsi>68?1:0)+(id.stochK>78?1:0)+(id.willR>-18?1:0)+(id.cci>90?1:0)+(curC>=id.bbu?1:0);
+
+    // ================================================================
+    // PUNTUACION COMPRA
+    // ================================================================
     let bs=0;
 
-    // MACRO TREND: critical filter
-    if(macroUp)       bs+=5;   // macro confirms buy
-    if(macroDown)     bs-=7;   // macro strongly against buy — hard penalty
-    if(strongTrend&&macroDown) bs-=4; // ADX confirms we're in real downtrend
+    // Macro (bonus, penalidad solo si NO hay sobrevendido en downtrend)
+    if(macroUp)                       bs+=6;
+    if(macroDown&&oversoldCnt<2)      bs-=5; // downtrend sin sobrevendido real → penaliza
+    if(adxStrong&&id.diPlus>id.diMinus) bs+=2;
 
-    // RSI — most reliable at extremes
-    if(id.rsi<25)     bs+=7;
-    else if(id.rsi<32) bs+=4;
-    else if(id.rsi<40) bs+=2;
-    else if(id.rsi>55) bs-=2; // not oversold
+    // RSI (muy fiable en extremos)
+    if(id.rsi<22)                     bs+=10;
+    else if(id.rsi<28)                bs+=7;
+    else if(id.rsi<35)                bs+=4;
+    else if(id.rsi<42)                bs+=2;
+    else if(id.rsi>58)                bs-=2;
 
-    // MACD crossover — strong momentum signal
-    if(macdCrossUp)   bs+=6;
-    else if(histImproving&&id.hist>0) bs+=2;
-    else if(histImproving&&id.hist<0) bs+=1; // improving but still negative
+    // MACD
+    if(macdCrossUp)                   bs+=8;
+    else if(histImproving&&id.hist>0) bs+=3;
+    else if(histImproving&&id.hist<0) bs+=2;
 
-    // EMA crossover
-    if(emaCrossUp)    bs+=5;
-    else if(id.ema9>id.ema21) bs+=1;
-    if(id.ema21>id.ema50)     bs+=1;
+    // EMA
+    if(emaCrossUp)                    bs+=5;
+    else if(id.ema9>id.ema21)         bs+=2;
+    if(id.ema21>id.ema50)             bs+=1;
 
-    // Stochastic
-    if(stochUp)       bs+=4;
-    else if(id.stochK<20) bs+=3;
-    else if(id.stochK>70) bs-=2;
+    // Estocástico
+    if(stochUp)                       bs+=6;
+    else if(id.stochK<15)             bs+=5;
+    else if(id.stochK<25)             bs+=3;
+    else if(id.stochK>72)             bs-=2;
 
-    // CCI extremes
-    if(id.cci<=-130)  bs+=5;
-    else if(id.cci<=-90) bs+=3;
-    else if(id.cci<=-50) bs+=1;
-    else if(id.cci>50) bs-=1;
+    // CCI
+    if(id.cci<=-150)                  bs+=7;
+    else if(id.cci<=-100)             bs+=5;
+    else if(id.cci<=-60)              bs+=3;
+    else if(id.cci<=-30)              bs+=1;
+    else if(id.cci>60)                bs-=1;
 
-    // Bollinger — price at lower band = oversold
-    if(sl[sl.length-1].c<=id.bbl)  bs+=5;
-    else if(sl[sl.length-1].c<id.bbSm) bs+=1;
+    // Bollinger
+    if(curC<=id.bbl)                  bs+=6;
+    else if(curC<id.bbSm)             bs+=1;
 
     // Williams %R
-    if(id.willR<-88)  bs+=4;
-    else if(id.willR<-75) bs+=2;
+    if(id.willR<-90)                  bs+=5;
+    else if(id.willR<-80)             bs+=3;
+    else if(id.willR<-70)             bs+=1;
 
     // Ichimoku
-    if(tkCrossUp)     bs+=5;
-    else if(id.tenkan>id.kijun) bs+=2;
-    if(id.ichimokuBull) bs+=2;
-    if(id.ichimokuBear) bs-=3;
+    if(tkCrossUp)                     bs+=5;
+    else if(id.tenkan>id.kijun)       bs+=2;
+    if(id.ichimokuBull)               bs+=2;
+    if(id.ichimokuBear)               bs-=1;
 
-    // Regression slope alignment
-    if(id.regSlope>0&&id.regR2>0.65) bs+=3;
-    else if(id.regSlope<0&&id.regR2>0.65) bs-=2;
+    // ADX + DI
+    if(id.adx>20&&id.diPlus>id.diMinus)  bs+=3;
+    if(id.adx>20&&id.diMinus>id.diPlus)  bs-=1;
 
-    // ADX with DI direction
-    if(id.adx>20&&id.diPlus>id.diMinus)  bs+=2;
-    if(id.adx>20&&id.diMinus>id.diPlus)  bs-=2;
+    // Regresión lineal
+    if(id.regSlope>0&&id.regR2>0.5)       bs+=3;
+    else if(id.regSlope<0&&id.regR2>0.7)  bs-=2;
 
-    // Support level
-    if(atSupport)     bs+=6;
+    // Soporte
+    if(atSupport)                     bs+=7;
 
-    // RSI recovery momentum
-    if(rsiUp)         bs+=4;
+    // RSI recuperándose
+    if(rsiUp)                         bs+=5;
 
-    // Candle structure at swing: hammer/bullish engulf?
+    // Patrones de vela
     const body=Math.abs(cds[i].c-cds[i].o);
-    const lowerWick=cds[i].o>cds[i].c?cds[i].c-cds[i].l:cds[i].o-cds[i].l;
-    if(lowerWick>body*1.5) bs+=2; // hammer pattern
+    const lowerWick=Math.min(cds[i].c,cds[i].o)-cds[i].l;
+    const upperWick=cds[i].h-Math.max(cds[i].c,cds[i].o);
+    if(lowerWick>body*1.5&&lowerWick>upperWick*2)         bs+=4; // martillo
+    const prevBody=Math.abs(cds[i-1].c-cds[i-1].o)||0.0001;
+    if(cds[i].c>cds[i].o&&cds[i].c>cds[i-1].o&&body>prevBody*0.6) bs+=3; // envolvente alcista
 
-    // ── CRITICAL: next candle confirmation ──────────────────────
-    if(buyConf) bs+=6;      // confirmed reversal = big bonus
-    else        bs-=3;      // no confirmation = penalize heavily
+    // Estructura de swing
+    if(swLow4)                        bs+=4;
+    else if(swLow2)                   bs+=2;
 
-    // ═══════════════════════════════════════════════════════════
-    // SELL SCORE
-    // ═══════════════════════════════════════════════════════════
+    // Confirmación (última y más importante)
+    if(buyConf)                       bs+=8;
+    else                              bs-=2;
+
+    // ================================================================
+    // PUNTUACION VENTA
+    // ================================================================
     let ss=0;
 
-    if(macroDown)     ss+=5;
-    if(macroUp)       ss-=7;
-    if(strongTrend&&macroUp) ss-=4;
+    if(macroDown)                     ss+=6;
+    if(macroUp&&overboughtCnt<2)      ss-=5;
+    if(adxStrong&&id.diMinus>id.diPlus) ss+=2;
 
-    if(id.rsi>75)     ss+=7;
-    else if(id.rsi>68) ss+=4;
-    else if(id.rsi>60) ss+=2;
-    else if(id.rsi<45) ss-=2;
+    if(id.rsi>78)                     ss+=10;
+    else if(id.rsi>72)                ss+=7;
+    else if(id.rsi>65)                ss+=4;
+    else if(id.rsi>58)                ss+=2;
+    else if(id.rsi<42)                ss-=2;
 
-    if(macdCrossDown) ss+=6;
-    else if(histDeterior&&id.hist<0) ss+=2;
-    else if(histDeterior&&id.hist>0) ss+=1;
+    if(macdCrossDown)                 ss+=8;
+    else if(histDeterior&&id.hist<0)  ss+=3;
+    else if(histDeterior&&id.hist>0)  ss+=2;
 
-    if(emaCrossDown)  ss+=5;
-    else if(id.ema9<id.ema21) ss+=1;
-    if(id.ema21<id.ema50)     ss+=1;
+    if(emaCrossDown)                  ss+=5;
+    else if(id.ema9<id.ema21)         ss+=2;
+    if(id.ema21<id.ema50)             ss+=1;
 
-    if(stochDown)     ss+=4;
-    else if(id.stochK>80) ss+=3;
-    else if(id.stochK<30) ss-=2;
+    if(stochDown)                     ss+=6;
+    else if(id.stochK>85)             ss+=5;
+    else if(id.stochK>75)             ss+=3;
+    else if(id.stochK<28)             ss-=2;
 
-    if(id.cci>=130)   ss+=5;
-    else if(id.cci>=90) ss+=3;
-    else if(id.cci>=50) ss+=1;
-    else if(id.cci<-50) ss-=1;
+    if(id.cci>=150)                   ss+=7;
+    else if(id.cci>=100)              ss+=5;
+    else if(id.cci>=60)               ss+=3;
+    else if(id.cci>=30)               ss+=1;
+    else if(id.cci<-60)               ss-=1;
 
-    if(sl[sl.length-1].c>=id.bbu)  ss+=5;
-    else if(sl[sl.length-1].c>id.bbSm) ss+=1;
+    if(curC>=id.bbu)                  ss+=6;
+    else if(curC>id.bbSm)             ss+=1;
 
-    if(id.willR>-12)  ss+=4;
-    else if(id.willR>-25) ss+=2;
+    if(id.willR>-10)                  ss+=5;
+    else if(id.willR>-20)             ss+=3;
+    else if(id.willR>-30)             ss+=1;
 
-    if(tkCrossDown)   ss+=5;
-    else if(id.tenkan<id.kijun) ss+=2;
-    if(id.ichimokuBear) ss+=2;
-    if(id.ichimokuBull) ss-=3;
+    if(tkCrossDown)                   ss+=5;
+    else if(id.tenkan<id.kijun)       ss+=2;
+    if(id.ichimokuBear)               ss+=2;
+    if(id.ichimokuBull)               ss-=1;
 
-    if(id.regSlope<0&&id.regR2>0.65) ss+=3;
-    else if(id.regSlope>0&&id.regR2>0.65) ss-=2;
+    if(id.adx>20&&id.diMinus>id.diPlus)  ss+=3;
+    if(id.adx>20&&id.diPlus>id.diMinus)  ss-=1;
 
-    if(id.adx>20&&id.diMinus>id.diPlus)  ss+=2;
-    if(id.adx>20&&id.diPlus>id.diMinus)  ss-=2;
+    if(id.regSlope<0&&id.regR2>0.5)       ss+=3;
+    else if(id.regSlope>0&&id.regR2>0.7)  ss-=2;
 
-    if(atResist)      ss+=6;
-    if(rsiDown)       ss+=4;
+    if(atResist)                      ss+=7;
+    if(rsiDown)                       ss+=5;
 
-    const upperWick=cds[i].o>cds[i].c?cds[i].h-cds[i].o:cds[i].h-cds[i].c;
-    if(upperWick>body*1.5) ss+=2; // shooting star pattern
+    if(upperWick>body*1.5&&upperWick>lowerWick*2)         ss+=4; // estrella fugaz
+    if(cds[i].c<cds[i].o&&cds[i].c<cds[i-1].o&&body>prevBody*0.6) ss+=3; // envolvente bajista
 
-    if(sellConf) ss+=6;
-    else         ss-=3;
+    if(swHigh4)                       ss+=4;
+    else if(swHigh2)                  ss+=2;
 
-    // ═══════════════════════════════════════════════════════════
-    // THRESHOLDS — adaptive by trend context
-    // ═══════════════════════════════════════════════════════════
-    // Against macro trend = need MUCH higher score (rare but real reversal)
-    // With macro trend = normal threshold
-    const buyMin  = macroDown ? 16 : (macroUp ? 10 : 13);
-    const sellMin = macroUp   ? 16 : (macroDown ? 10 : 13);
+    if(sellConf)                      ss+=8;
+    else                              ss-=2;
 
-    // Must have swing AND score dominates opposite AND beats threshold
-    const doBuy  = swLow&&buyConf&&bs>=buyMin&&bs>ss+3&&lastDir!=='BUY';
-    const doSell = swHigh&&sellConf&&ss>=sellMin&&ss>bs+3&&lastDir!=='SELL';
+    // ================================================================
+    // UMBRALES ADAPTATIVOS
+    // - Con tendencia macro: umbral bajo (13)
+    // - Contra tendencia pero muy sobrevendido (3+ indicadores): (16)
+    // - Contra tendencia y algo sobrevendido (2+): (19)
+    // - Contra tendencia sin sobrevendido: (24) → casi imposible
+    // ================================================================
+    const buyMin=macroUp?13:(oversoldCnt>=3?16:(oversoldCnt>=2?19:24));
+    const sellMin=macroDown?13:(overboughtCnt>=3?16:(overboughtCnt>=2?19:24));
 
-    // Pure crossover signal (no swing needed) — only WITH macro trend
-    const crossBuy  = !swLow&&macdCrossUp&&(emaCrossUp||rsiUp||stochUp||tkCrossUp)&&
-                      !macroDown&&bs>=14&&bs>ss+3&&lastDir!=='BUY';
-    const crossSell = !swHigh&&macdCrossDown&&(emaCrossDown||rsiDown||stochDown||tkCrossDown)&&
-                      !macroUp&&ss>=14&&ss>bs+3&&lastDir!=='SELL';
+    // Necesita swing O cruce fuerte + confirmación de vela
+    const hasSwingBuy=(swLow2||swLow4||macdCrossUp||emaCrossUp||tkCrossUp||rsiUp||stochUp);
+    const hasSwingSell=(swHigh2||swHigh4||macdCrossDown||emaCrossDown||tkCrossDown||rsiDown||stochDown);
 
-    if(doBuy||crossBuy){
+    const doBuy=hasSwingBuy&&buyConf&&bs>=buyMin&&bs>ss+2&&lastDir!=='BUY';
+    const doSell=hasSwingSell&&sellConf&&ss>=sellMin&&ss>bs+2&&lastDir!=='SELL';
+
+    if(doBuy){
       sigs.push({time:cds[i].time,dir:'BUY',score:bs});
       lastIdx=i;lastDir='BUY';
-    }else if(doSell||crossSell){
+    }else if(doSell){
       sigs.push({time:cds[i].time,dir:'SELL',score:ss});
       lastIdx=i;lastDir='SELL';
     }
   }
   return sigs;
 }
+
 
 function updateChart(){
   if(!candles||!candles.length)return;
